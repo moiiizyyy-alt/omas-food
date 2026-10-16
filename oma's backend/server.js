@@ -13,46 +13,75 @@ const INITIAL_MENU_FILE = path.join(DATA_DIR, 'initialMenu.json');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 const EMAIL_LOGS_FILE = path.join(DATA_DIR, 'email_logs.json');
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// In-memory fallbacks for serverless environments (Vercel)
+let memoryMenu = null;
+let memoryOrders = null;
+let memoryEmailLogs = [];
+
+// Ensure data directory exists safely
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.log('ℹ️ Running in read-only filesystem environment (Serverless / Vercel)');
 }
 
 // Initialize Menu File if not present
-if (!fs.existsSync(MENU_FILE)) {
-  if (fs.existsSync(INITIAL_MENU_FILE)) {
-    fs.copyFileSync(INITIAL_MENU_FILE, MENU_FILE);
-  } else {
-    fs.writeFileSync(MENU_FILE, JSON.stringify([], null, 2));
+try {
+  if (!fs.existsSync(MENU_FILE)) {
+    if (fs.existsSync(INITIAL_MENU_FILE)) {
+      fs.copyFileSync(INITIAL_MENU_FILE, MENU_FILE);
+    } else {
+      fs.writeFileSync(MENU_FILE, JSON.stringify([], null, 2));
+    }
   }
+} catch (e) {
+  // Read-only filesystem fallback
 }
 
-// Initialize Orders and Email Logs
-if (!fs.existsSync(ORDERS_FILE)) {
-  fs.writeFileSync(ORDERS_FILE, JSON.stringify([], null, 2));
-}
-if (!fs.existsSync(EMAIL_LOGS_FILE)) {
-  fs.writeFileSync(EMAIL_LOGS_FILE, JSON.stringify([], null, 2));
-}
-
-// Helpers to read/write JSON
+// Helpers to read/write JSON safely
 function readJSON(file) {
+  if (file === MENU_FILE && memoryMenu) return memoryMenu;
+  if (file === ORDERS_FILE && memoryOrders) return memoryOrders;
+  if (file === EMAIL_LOGS_FILE && memoryEmailLogs.length > 0) return memoryEmailLogs;
+
   try {
-    const raw = fs.readFileSync(file, 'utf8');
-    return JSON.parse(raw);
+    if (fs.existsSync(file)) {
+      const raw = fs.readFileSync(file, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (file === MENU_FILE) memoryMenu = parsed;
+      if (file === ORDERS_FILE) memoryOrders = parsed;
+      return parsed;
+    }
   } catch (err) {
-    console.error(`Error reading ${file}:`, err);
+    console.warn(`Fallback for ${file}:`, err.message);
+  }
+
+  // Fallback to initialMenu if reading menu fails
+  if (file === MENU_FILE) {
+    try {
+      if (fs.existsSync(INITIAL_MENU_FILE)) {
+        memoryMenu = JSON.parse(fs.readFileSync(INITIAL_MENU_FILE, 'utf8'));
+        return memoryMenu;
+      }
+    } catch {}
     return [];
   }
+  return [];
 }
 
 function writeJSON(file, data) {
+  if (file === MENU_FILE) memoryMenu = data;
+  if (file === ORDERS_FILE) memoryOrders = data;
+  if (file === EMAIL_LOGS_FILE) memoryEmailLogs = data;
+
   try {
     fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
     return true;
   } catch (err) {
-    console.error(`Error writing ${file}:`, err);
-    return false;
+    // Expected in serverless read-only disk, memory cache handles it
+    return true;
   }
 }
 
@@ -448,13 +477,18 @@ app.patch('/api/orders/:id/status', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// START SERVER
+// START SERVER (Local/Dedicated) & EXPORT (Vercel Serverless)
 // -------------------------------------------------------------
-app.listen(PORT, () => {
-  console.log(`\n======================================================`);
-  console.log(`🍕 Oma's Pizza & Fast Food Backend is RUNNING on port ${PORT}`);
-  console.log(`🌐 Base URL: http://localhost:${PORT}`);
-  console.log(`🔒 Admin Credentials: admin@omas.com / Adminofomas1`);
-  console.log(`📧 Order Notification Target: moiiizyyy@gmail.com`);
-  console.log(`======================================================\n`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`\n======================================================`);
+    console.log(`🍕 Oma's Pizza & Fast Food Backend is RUNNING on port ${PORT}`);
+    console.log(`🌐 Base URL: http://localhost:${PORT}`);
+    console.log(`🔒 Admin Credentials: admin@omas.com / Adminofomas1`);
+    console.log(`📧 Order Notification Target: moiiizyyy@gmail.com`);
+    console.log(`======================================================\n`);
+  });
+}
+
+module.exports = app;
+
