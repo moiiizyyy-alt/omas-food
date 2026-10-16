@@ -92,13 +92,16 @@ export default function CheckoutModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        {/* Mobile Sheet Drag Indicator */}
+        <div className="modal-drag-indicator" aria-hidden="true"></div>
+
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title-col">
-            <span style={{ fontSize: '1.5rem' }}>📦</span>
-            <div>
+            <span style={{ fontSize: '1.45rem', flexShrink: 0 }}>📦</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <h2 className="modal-title">Cash on Delivery Checkout</h2>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>
                 Please provide your contact and delivery location
               </span>
             </div>
@@ -107,6 +110,7 @@ export default function CheckoutModal({
             type="button" 
             className="btn-drawer-close"
             onClick={onClose}
+            aria-label="Close checkout"
           >
             ✕
           </button>

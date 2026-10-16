@@ -69,13 +69,16 @@ GRAND TOTAL: Rs. ${order.grandTotal}
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+        {/* Mobile Sheet Drag Indicator */}
+        <div className="modal-drag-indicator" aria-hidden="true"></div>
+
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title-col">
-            <span style={{ fontSize: '1.6rem' }}>🎉</span>
-            <div>
+            <span style={{ fontSize: '1.6rem', flexShrink: 0 }}>🎉</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <h2 className="modal-title" style={{ color: '#10b981' }}>Order Confirmed!</h2>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>
                 Order #{order.orderId} registered successfully
               </span>
             </div>
@@ -84,6 +87,7 @@ GRAND TOTAL: Rs. ${order.grandTotal}
             type="button" 
             className="btn-drawer-close"
             onClick={onClose}
+            aria-label="Close"
           >
             ✕
           </button>

@@ -147,13 +147,16 @@ export default function AdminPanelModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px' }}>
+        {/* Mobile Sheet Drag Indicator */}
+        <div className="modal-drag-indicator" aria-hidden="true"></div>
+
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title-col">
-            <span style={{ fontSize: '1.5rem' }}>👨‍🍳</span>
-            <div>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>👨‍🍳</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <h2 className="modal-title">Oma's Admin Control Portal</h2>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>
                 Upload new dishes, modify prices, and monitor customer orders
               </span>
             </div>
