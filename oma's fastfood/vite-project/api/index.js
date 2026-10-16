@@ -1,60 +1,11 @@
 import express from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { DEFAULT_MENU } from '../src/data/defaultMenu.js';
 
 const app = express();
 
-const DATA_DIR = path.join(__dirname, '../data');
-const MENU_FILE = path.join(DATA_DIR, 'menu.json');
-const INITIAL_MENU_FILE = path.join(DATA_DIR, 'initialMenu.json');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
-const EMAIL_LOGS_FILE = path.join(DATA_DIR, 'email_logs.json');
-
-// In-memory fallbacks for serverless environments
-let memoryMenu = null;
+// In-memory persistent cache for serverless environment
+let memoryMenu = [...DEFAULT_MENU];
 let memoryOrders = [];
-let memoryEmailLogs = [];
-
-// Safe read/write
-function readJSON(file) {
-  if (file === MENU_FILE && memoryMenu) return memoryMenu;
-  if (file === ORDERS_FILE && memoryOrders && memoryOrders.length > 0) return memoryOrders;
-  if (file === EMAIL_LOGS_FILE && memoryEmailLogs.length > 0) return memoryEmailLogs;
-
-  try {
-    if (fs.existsSync(file)) {
-      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (file === MENU_FILE) memoryMenu = parsed;
-      if (file === ORDERS_FILE) memoryOrders = parsed;
-      return parsed;
-    }
-  } catch (err) {}
-
-  if (file === MENU_FILE) {
-    try {
-      if (fs.existsSync(INITIAL_MENU_FILE)) {
-        memoryMenu = JSON.parse(fs.readFileSync(INITIAL_MENU_FILE, 'utf8'));
-        return memoryMenu;
-      }
-    } catch {}
-  }
-  return [];
-}
-
-function writeJSON(file, data) {
-  if (file === MENU_FILE) memoryMenu = data;
-  if (file === ORDERS_FILE) memoryOrders = data;
-  if (file === EMAIL_LOGS_FILE) memoryEmailLogs = data;
-
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {}
-  return true;
-}
 
 // CORS Middleware
 app.use((req, res, next) => {
@@ -92,8 +43,7 @@ app.post('/api/auth/login', (req, res) => {
 
 // Get Menu Items
 app.get('/api/items', (req, res) => {
-  const items = readJSON(MENU_FILE);
-  res.json({ success: true, count: items.length, items });
+  res.json({ success: true, count: memoryMenu.length, items: memoryMenu });
 });
 
 // Add Menu Item
@@ -103,7 +53,6 @@ app.post('/api/items', (req, res) => {
     return res.status(400).json({ success: false, message: 'Item name, price, and category are required' });
   }
 
-  const items = readJSON(MENU_FILE);
   const newItem = {
     id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     name: name.trim(),
@@ -119,8 +68,7 @@ app.post('/api/items', (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  items.unshift(newItem);
-  writeJSON(MENU_FILE, items);
+  memoryMenu.unshift(newItem);
 
   res.status(201).json({ success: true, message: 'Menu item uploaded successfully!', item: newItem });
 });
@@ -128,9 +76,7 @@ app.post('/api/items', (req, res) => {
 // Delete Menu Item
 app.delete('/api/items/:id', (req, res) => {
   const { id } = req.params;
-  const items = readJSON(MENU_FILE);
-  const filtered = items.filter(item => item.id !== id);
-  writeJSON(MENU_FILE, filtered);
+  memoryMenu = memoryMenu.filter(item => item.id !== id);
   res.json({ success: true, message: 'Item removed from menu' });
 });
 
@@ -174,9 +120,7 @@ app.post('/api/orders', async (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  const orders = readJSON(ORDERS_FILE);
-  orders.unshift(newOrder);
-  writeJSON(ORDERS_FILE, orders);
+  memoryOrders.unshift(newOrder);
 
   // Dispatch live email to moiiizyyy@gmail.com via FormSubmit
   try {
@@ -217,19 +161,16 @@ app.post('/api/orders', async (req, res) => {
 
 // Get Orders
 app.get('/api/orders', (req, res) => {
-  const orders = readJSON(ORDERS_FILE);
-  res.json({ success: true, count: orders.length, orders });
+  res.json({ success: true, count: memoryOrders.length, orders: memoryOrders });
 });
 
 // Update Order Status
 app.patch('/api/orders/:id/status', (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const orders = readJSON(ORDERS_FILE);
-  const order = orders.find(o => o.orderId === id || o.id === id);
+  const order = memoryOrders.find(o => o.orderId === id || o.id === id);
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
   order.status = status;
-  writeJSON(ORDERS_FILE, orders);
   res.json({ success: true, message: `Order status updated to ${status}`, order });
 });
 
