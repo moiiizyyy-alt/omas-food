@@ -1,27 +1,14 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "my-backend": {
-      "path": "oma's backend",
-      "framework": "express"
-    },
-    "vite-project": {
-      "path": "oma's fastfood/vite-project",
-      "framework": "vite"
-    }
-  },
-  "routes": [
+  "buildCommand": "npm --prefix \"oma's fastfood/vite-project\" run build",
+  "outputDirectory": "oma's fastfood/vite-project/dist",
+  "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": {
-        "service": "my-backend"
-      }
+      "destination": "/api/index.js"
     },
     {
       "source": "/(.*)",
-      "destination": {
-        "service": "vite-project"
-      }
+      "destination": "/index.html"
     }
   ]
 }
