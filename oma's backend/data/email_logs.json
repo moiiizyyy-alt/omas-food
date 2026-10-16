@@ -1,0 +1,114 @@
+[
+  {
+    "orderId": "OMA-374756",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-374756 - Oma's Pizza & Fast Food (Rs. 1450)",
+    "sentAt": "2026-10-16T12:10:13.402Z",
+    "customer": {
+      "name": "rtyuiop",
+      "phone": "123456789",
+      "address": "asdfghjklllloiuytrewq",
+      "notes": ""
+    },
+    "grandTotal": 1450,
+    "status": "Dispatched"
+  },
+  {
+    "orderId": "OMA-828582",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-828582 - Oma's Pizza & Fast Food (Rs. 3330)",
+    "sentAt": "2026-10-16T12:08:42.105Z",
+    "customer": {
+      "name": "Moiz Test Real Order",
+      "phone": "0300-1234567",
+      "address": "Gulberg 3, Lahore, Pakistan",
+      "notes": "Extra Spicy with Garlic Mayo"
+    },
+    "grandTotal": 3330,
+    "status": "Dispatched"
+  },
+  {
+    "orderId": "OMA-543253",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-543253 - Oma's Pizza & Fast Food (Rs. 590)",
+    "sentAt": "2026-10-16T12:06:41.814Z",
+    "customer": {
+      "name": "456789",
+      "phone": "4567890-",
+      "address": "sdfghjkl;",
+      "notes": ""
+    },
+    "grandTotal": 590,
+    "status": "Dispatched & Logged"
+  },
+  {
+    "orderId": "OMA-904026",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-904026 - Oma's Pizza & Fast Food (Rs. 1550)",
+    "sentAt": "2026-10-16T12:05:25.023Z",
+    "customer": {
+      "name": "sdfghj",
+      "phone": "dfghjk76567890",
+      "address": "sdfghnmkhgtyhjkjhgvghj",
+      "notes": "cvbnm"
+    },
+    "grandTotal": 1550,
+    "status": "Dispatched & Logged"
+  },
+  {
+    "orderId": "OMA-515985",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-515985 - Oma's Pizza & Fast Food (Rs. 990)",
+    "sentAt": "2026-10-16T12:04:49.347Z",
+    "customer": {
+      "name": "sdfghj",
+      "phone": "dfghjk76567890",
+      "address": "sdfghnmkhgtyhjkjhgvghj",
+      "notes": "cvbnm"
+    },
+    "grandTotal": 990,
+    "status": "Dispatched & Logged"
+  },
+  {
+    "orderId": "OMA-205945",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-205945 - Oma's Pizza & Fast Food (Rs. 1450)",
+    "sentAt": "2026-10-16T12:04:12.974Z",
+    "customer": {
+      "name": "sdfghj",
+      "phone": "dfghjk76567890",
+      "address": "sdfghnmkhgtyhjkjhgvghj",
+      "notes": "cvbnm"
+    },
+    "grandTotal": 1450,
+    "status": "Dispatched & Logged"
+  },
+  {
+    "orderId": "OMA-121631",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-121631 - Oma's Pizza & Fast Food (Rs. 1450)",
+    "sentAt": "2026-10-16T12:03:46.400Z",
+    "customer": {
+      "name": "sdfghj",
+      "phone": "dfghjk76567890",
+      "address": "sdfghnmkhgtyhjkjhgvghj",
+      "notes": "cvbnm"
+    },
+    "grandTotal": 1450,
+    "status": "Dispatched & Logged"
+  },
+  {
+    "orderId": "OMA-294210",
+    "recipient": "moiiizyyy@gmail.com",
+    "subject": "🚨 NEW ORDER #OMA-294210 - Oma's Pizza & Fast Food (Rs. 3690)",
+    "sentAt": "2026-10-16T12:00:12.655Z",
+    "customer": {
+      "name": "sdfghj",
+      "phone": "dfghjk76567890",
+      "address": "sdfghnmkhgtyhjkjhgvghj",
+      "notes": "cvbnm"
+    },
+    "grandTotal": 3690,
+    "status": "Dispatched & Logged"
+  }
+]
