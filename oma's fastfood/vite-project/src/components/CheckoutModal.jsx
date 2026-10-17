@@ -209,19 +209,6 @@ export default function CheckoutModal({
             </div>
           </div>
 
-          {/* Notice about email notification */}
-          <div style={{
-            fontSize: '0.8rem',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            marginBottom: '1.5rem'
-          }}>
-            <span>📧</span>
-            <span>All order details will be dispatched immediately to <strong>moiiizyyy@gmail.com</strong></span>
-          </div>
-
           {/* Modal Actions */}
           <div className="modal-actions">
             <button

@@ -122,7 +122,7 @@ export default function App() {
     setCompletedOrder(order);
     setIsCheckoutOpen(false);
     handleClearCart();
-    showToast(`Order #${order.orderId} placed! Notification sent to moiiizyyy@gmail.com 🚀`);
+    showToast(`Order #${order.orderId} confirmed successfully! 🧾`);
   };
 
   // Admin flow
