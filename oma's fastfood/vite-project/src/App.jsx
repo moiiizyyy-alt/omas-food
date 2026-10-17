@@ -276,10 +276,12 @@ export default function App() {
       />
 
       {/* Order Success & Printable Receipt Modal */}
-      <OrderSuccessModal
-        order={completedOrder}
-        onClose={() => setCompletedOrder(null)}
-      />
+      {completedOrder && (
+        <OrderSuccessModal
+          order={completedOrder}
+          onClose={() => setCompletedOrder(null)}
+        />
+      )}
 
       {/* Discreet Admin Login Modal (admin@omas.com / Adminofomas1) */}
       <AdminLoginModal

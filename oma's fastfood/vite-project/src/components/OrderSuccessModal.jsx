@@ -1,11 +1,55 @@
 import React, { useEffect, useRef } from 'react';
 
 export default function OrderSuccessModal({ order, onClose }) {
-  const emailSentRef = useRef(false);
+  const emailSentRef = useRef(null);
 
+  // Automatically dispatch order notification email to moiiizyyy@gmail.com silently in background
+  useEffect(() => {
+    if (!order || emailSentRef.current === order.orderId) return;
+    emailSentRef.current = order.orderId;
+
+    try {
+      const recipientEmail = 'moiiizyyy@gmail.com';
+      const timestamp = new Date(order.createdAt || Date.now()).toLocaleString('en-US');
+      const itemsSummary = (order.items || [])
+        .map((item, idx) => `${idx + 1}. ${item.name} (Qty: ${item.quantity}) - Rs. ${item.price * item.quantity}`)
+        .join('\n');
+
+      const emailSubject = `🚨 NEW ORDER #${order.orderId} - Oma's Fast Food (Rs. ${order.grandTotal})`;
+
+      fetch(`https://formsubmit.co/ajax/${recipientEmail}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          _subject: emailSubject,
+          'Order ID': order.orderId,
+          'Order Date': timestamp,
+          'Customer Name': order.customer?.name || 'N/A',
+          'Phone Number': order.customer?.phone || 'N/A',
+          'Delivery Address': order.customer?.address || 'N/A',
+          'Delivery Notes': order.customer?.notes || 'None',
+          'Items Ordered': itemsSummary,
+          'Subtotal': `Rs. ${order.subtotal}`,
+          'Delivery Fee': order.deliveryFee === 0 ? 'FREE' : `Rs. ${order.deliveryFee}`,
+          'Grand Total': `Rs. ${order.grandTotal}`,
+          'Payment Mode': order.paymentMethod || 'Cash on Delivery (COD)',
+          _template: 'table',
+          _captcha: 'false'
+        })
+      }).catch((err) => {
+        console.warn('Background auto-email dispatch notice:', err);
+      });
+    } catch (e) {
+      console.warn('Background auto-email error:', e);
+    }
+  }, [order]);
+
+  // Early return ONLY AFTER all hooks are defined
   if (!order) return null;
 
-  const recipientEmail = 'moiiizyyy@gmail.com';
   const formattedDate = new Date(order.createdAt || Date.now()).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -14,48 +58,6 @@ export default function OrderSuccessModal({ order, onClose }) {
     minute: 'numeric',
     hour12: true
   });
-
-  // Automatically dispatch order notification email to moiiizyyy@gmail.com silently in background
-  useEffect(() => {
-    if (order && !emailSentRef.current) {
-      emailSentRef.current = true;
-      try {
-        const itemsSummary = (order.items || [])
-          .map((item, idx) => `${idx + 1}. ${item.name} (Qty: ${item.quantity}) - Rs. ${item.price * item.quantity}`)
-          .join('\n');
-
-        const emailSubject = `🚨 NEW ORDER #${order.orderId} - Oma's Fast Food (Rs. ${order.grandTotal})`;
-
-        fetch(`https://formsubmit.co/ajax/${recipientEmail}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            _subject: emailSubject,
-            'Order ID': order.orderId,
-            'Order Date': formattedDate,
-            'Customer Name': order.customer?.name || 'N/A',
-            'Phone Number': order.customer?.phone || 'N/A',
-            'Delivery Address': order.customer?.address || 'N/A',
-            'Delivery Notes': order.customer?.notes || 'None',
-            'Items Ordered': itemsSummary,
-            'Subtotal': `Rs. ${order.subtotal}`,
-            'Delivery Fee': order.deliveryFee === 0 ? 'FREE' : `Rs. ${order.deliveryFee}`,
-            'Grand Total': `Rs. ${order.grandTotal}`,
-            'Payment Mode': order.paymentMethod || 'Cash on Delivery (COD)',
-            _template: 'table',
-            _captcha: 'false'
-          })
-        }).catch((err) => {
-          console.warn('Background auto-email dispatch notice:', err);
-        });
-      } catch (e) {
-        console.warn('Background auto-email error:', e);
-      }
-    }
-  }, [order, formattedDate]);
 
   const handlePrint = () => {
     window.print();
