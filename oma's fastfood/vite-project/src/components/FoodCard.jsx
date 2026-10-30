@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 
-export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity }) {
+export default function FoodCard({
+  item,
+  cartItem,
+  onAddToCart,
+  onUpdateQuantity,
+  isAdminLoggedIn = false,
+  onAdminEdit = null
+}) {
   const [clickedFeedback, setClickedFeedback] = useState(false);
   const quantity = cartItem ? cartItem.quantity : 0;
 
-  // Handle clicking on the image directly as a button
+  // Handle clicking on the image directly as a quick-add button
   const handleImageClick = () => {
     onAddToCart(item);
     setClickedFeedback(true);
@@ -21,11 +28,11 @@ export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity
 
   return (
     <article className="food-card">
-      {/* Interactive Image (Acts as Button) */}
+      {/* Interactive Image Container */}
       <div 
         className="food-card-image-wrap" 
         onClick={handleImageClick}
-        title={`Click to add "${item.name}" to cart`}
+        title={`Click image to add "${item.name}" to cart`}
       >
         <img 
           src={item.image} 
@@ -53,6 +60,21 @@ export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity
           </span>
         )}
 
+        {/* Admin Quick Edit Tag if logged in */}
+        {isAdminLoggedIn && onAdminEdit && (
+          <button
+            type="button"
+            className="card-admin-edit-badge"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdminEdit(item);
+            }}
+            title="Edit this dish in Admin Panel"
+          >
+            ✏️ Edit
+          </button>
+        )}
+
         {/* Hover / Tap Overlay (Image Button Indicator) */}
         <div className="food-image-overlay-btn">
           <span className="quick-add-image-tag">
@@ -65,10 +87,10 @@ export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity
       <div className="food-card-body">
         <div className="food-card-header">
           <div className="food-card-category">{item.category}</div>
-          <h3 className="food-card-title">{item.name}</h3>
+          <h3 className="food-card-title" title={item.name}>{item.name}</h3>
         </div>
 
-        <p className="food-card-desc">
+        <p className="food-card-desc" title={item.description}>
           {item.description}
         </p>
 
@@ -79,14 +101,17 @@ export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity
             <span className="food-price-val">Rs. {Number(item.price).toLocaleString()}</span>
           </div>
 
-          <div>
+          <div className="food-card-action-wrap">
             {quantity > 0 ? (
               /* If in cart, show interactive plus/minus stepper */
               <div className="card-qty-stepper">
                 <button
                   type="button"
                   className="stepper-btn"
-                  onClick={() => onUpdateQuantity(item.id, quantity - 1)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateQuantity(item.id, quantity - 1);
+                  }}
                   aria-label="Decrease quantity"
                 >
                   -
@@ -95,7 +120,10 @@ export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity
                 <button
                   type="button"
                   className="stepper-btn"
-                  onClick={() => onUpdateQuantity(item.id, quantity + 1)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateQuantity(item.id, quantity + 1);
+                  }}
                   aria-label="Increase quantity"
                 >
                   +
@@ -106,7 +134,10 @@ export default function FoodCard({ item, cartItem, onAddToCart, onUpdateQuantity
               <button
                 type="button"
                 className="btn-add-cart"
-                onClick={() => onAddToCart(item)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddToCart(item);
+                }}
               >
                 <span>➕</span>
                 <span>Add</span>

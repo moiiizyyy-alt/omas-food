@@ -12,8 +12,15 @@ import Footer from './components/Footer';
 import { DEFAULT_MENU } from './data/defaultMenu';
 
 export default function App() {
-  // Menu items state
-  const [items, setItems] = useState(DEFAULT_MENU);
+  // Menu items state (Persisted with localStorage fallback)
+  const [items, setItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem('omas_pos_menu_items');
+      return saved ? JSON.parse(saved) : DEFAULT_MENU;
+    } catch {
+      return DEFAULT_MENU;
+    }
+  });
   const [loadingItems, setLoadingItems] = useState(true);
 
   // Filters
@@ -39,6 +46,7 @@ export default function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [editingItemForAdmin, setEditingItemForAdmin] = useState(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState('');
@@ -58,6 +66,15 @@ export default function App() {
       console.warn('Failed to save cart to localStorage:', err);
     }
   }, [cartItems]);
+
+  // Sync items to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('omas_pos_menu_items', JSON.stringify(items));
+    } catch (err) {
+      console.warn('Failed to save menu items to localStorage:', err);
+    }
+  }, [items]);
 
   // Load menu from backend on initial mount
   useEffect(() => {
@@ -128,6 +145,7 @@ export default function App() {
   // Admin flow
   const handleOpenAdminTrigger = () => {
     if (isAdminLoggedIn) {
+      setEditingItemForAdmin(null);
       setIsAdminPanelOpen(true);
     } else {
       setIsAdminLoginOpen(true);
@@ -144,25 +162,73 @@ export default function App() {
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
     setIsAdminPanelOpen(false);
+    setEditingItemForAdmin(null);
     showToast('Admin logged out.');
   };
 
+  // Add new item (Admin)
   const handleAddNewItem = (newItem) => {
-    // Prepend new item so it appears at top of its category
     setItems((prev) => [newItem, ...prev]);
-    // Switch filter to this category to make the added item instantly visible!
     setSelectedCategory(newItem.category);
     showToast(`Item "${newItem.name}" is now live in menu!`);
   };
 
+  // Update existing item (Admin)
+  const handleUpdateItem = async (updatedItem) => {
+    try {
+      await fetch(`/api/items/${updatedItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedItem)
+      });
+    } catch (err) {
+      console.warn('Backend update error, updated locally:', err);
+    }
+
+    // Update in menu items
+    setItems((prev) =>
+      prev.map((i) => (i.id === updatedItem.id ? { ...i, ...updatedItem } : i))
+    );
+
+    // Sync in cart items if item is currently in cart
+    setCartItems((prev) =>
+      prev.map((i) =>
+        i.id === updatedItem.id
+          ? {
+              ...i,
+              name: updatedItem.name,
+              price: Number(updatedItem.price),
+              image: updatedItem.image,
+              category: updatedItem.category
+            }
+          : i
+      )
+    );
+
+    showToast(`"${updatedItem.name}" updated successfully! ✏️`);
+  };
+
+  // Delete item (Admin)
   const handleDeleteItem = async (itemId) => {
+    const itemToDelete = items.find((i) => i.id === itemId);
+    const itemName = itemToDelete ? itemToDelete.name : 'Item';
+
     try {
       await fetch(`/api/items/${itemId}`, { method: 'DELETE' });
     } catch (err) {
-      console.warn('Backend delete error:', err);
+      console.warn('Backend delete error, removed locally:', err);
     }
+
     setItems((prev) => prev.filter((i) => i.id !== itemId));
-    showToast('Item removed from menu.');
+    // Remove from cart if present
+    setCartItems((prev) => prev.filter((i) => i.id !== itemId));
+    showToast(`"${itemName}" deleted from menu.`);
+  };
+
+  // Trigger quick edit on a specific food card
+  const handleQuickAdminEdit = (item) => {
+    setEditingItemForAdmin(item);
+    setIsAdminPanelOpen(true);
   };
 
   // Filter items by category & search query
@@ -195,7 +261,7 @@ export default function App() {
         isAdminLoggedIn={isAdminLoggedIn}
       />
 
-      {/* Hero Showcase */}
+      {/* Hero Showcase (Themed Name, No Pizza Image, No Rating) */}
       <HeroBanner onSelectCategory={(cat) => setSelectedCategory(cat)} />
 
       {/* Categories Bar */}
@@ -231,7 +297,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Food Items Grid */}
+        {/* Food Items Grid (Mobile: Minimum 2 images/cards per row) */}
         {filteredItems.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-muted)' }}>
             <span style={{ fontSize: '3.5rem', display: 'block', marginBottom: '0.85rem' }}>🔍</span>
@@ -249,6 +315,8 @@ export default function App() {
                   cartItem={cartItem}
                   onAddToCart={handleAddToCart}
                   onUpdateQuantity={handleUpdateQuantity}
+                  isAdminLoggedIn={isAdminLoggedIn}
+                  onAdminEdit={handleQuickAdminEdit}
                 />
               );
             })}
@@ -293,11 +361,16 @@ export default function App() {
       {/* Admin Management & Upload Portal */}
       <AdminPanelModal
         isOpen={isAdminPanelOpen}
-        onClose={() => setIsAdminPanelOpen(false)}
+        onClose={() => {
+          setIsAdminPanelOpen(false);
+          setEditingItemForAdmin(null);
+        }}
         items={items}
         onAddItem={handleAddNewItem}
+        onUpdateItem={handleUpdateItem}
         onDeleteItem={handleDeleteItem}
         onLogout={handleAdminLogout}
+        initialEditItem={editingItemForAdmin}
       />
 
       {/* Toast Notification */}

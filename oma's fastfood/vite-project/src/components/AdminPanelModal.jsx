@@ -1,28 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { QUICK_IMAGE_PRESETS } from '../data/defaultMenu';
 
 export default function AdminPanelModal({
   isOpen,
   onClose,
   items,
   onAddItem,
+  onUpdateItem,
   onDeleteItem,
-  onLogout
+  onLogout,
+  initialEditItem = null
 }) {
-  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'manage' | 'orders'
+  const [activeTab, setActiveTab] = useState('manage'); // Default to 'manage' or 'upload'
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+
+  // Search & Filter in Manage Menu
+  const [manageSearch, setManageSearch] = useState('');
+  const [manageCategory, setManageCategory] = useState('all');
 
   // Form State for New Item
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Fast Food');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState(QUICK_IMAGE_PRESETS[0].url);
+  const [imageUrl, setImageUrl] = useState('');
   const [badge, setBadge] = useState('New');
   const [spicy, setSpicy] = useState('Mild');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
+
+  // Form State for Editing an Existing Item
+  const [editingItem, setEditingItem] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('Fast Food');
+  const [editPrice, setEditPrice] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const [editBadge, setEditBadge] = useState('New');
+  const [editSpicy, setEditSpicy] = useState('Mild');
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [editFeedbackMsg, setEditFeedbackMsg] = useState('');
+
+  // Item pending deletion confirmation
+  const [itemToDelete, setItemToDelete] = useState(null);
+
+  // If opened with a specific item to edit
+  useEffect(() => {
+    if (initialEditItem && isOpen) {
+      setActiveTab('manage');
+      startEditingItem(initialEditItem);
+    }
+  }, [initialEditItem, isOpen]);
 
   // Fetch orders when orders tab opened
   useEffect(() => {
@@ -62,21 +90,58 @@ export default function AdminPanelModal({
     }
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageUrl(reader.result);
+  // Gallery file handler with browser canvas auto-optimization for crisp HD & fast uploads
+  const handleFileUpload = (e, isEdit = false) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Optimize resolution to max 900px so phone camera photos (5-15MB) upload instantly
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 900;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        if (isEdit) {
+          setEditImageUrl(optimizedDataUrl);
+        } else {
+          setImageUrl(optimizedDataUrl);
+        }
       };
-      reader.readAsDataURL(file);
-    }
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
+  // Upload New Item Submit
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !price || !imageUrl.trim()) {
-      setFeedbackMsg('Please provide Item Name, Price, and Image.');
+    if (!name.trim() || !price) {
+      setFeedbackMsg('Please provide Item Name and Price.');
+      return;
+    }
+
+    if (!imageUrl.trim()) {
+      setFeedbackMsg('Please select an image from your device gallery.');
       return;
     }
 
@@ -94,7 +159,6 @@ export default function AdminPanelModal({
     };
 
     try {
-      // POST to backend API
       const res = await fetch('/api/items', {
         method: 'POST',
         headers: {
@@ -107,9 +171,8 @@ export default function AdminPanelModal({
 
       if (data.success && data.item) {
         onAddItem(data.item);
-        setFeedbackMsg(`✓ "${data.item.name}" uploaded successfully! It is now live in the ${data.item.category} menu.`);
+        setFeedbackMsg(`✓ "${data.item.name}" added successfully with gallery photo!`);
       } else {
-        // Fallback local addition
         const localItem = {
           id: `item-${Date.now()}`,
           rating: 5.0,
@@ -120,10 +183,10 @@ export default function AdminPanelModal({
         setFeedbackMsg(`✓ "${localItem.name}" added to menu!`);
       }
 
-      // Reset form
       setName('');
       setPrice('');
       setDescription('');
+      setImageUrl('');
     } catch (err) {
       console.warn('Backend /api/items POST error, adding locally:', err);
       const fallbackItem = {
@@ -137,16 +200,88 @@ export default function AdminPanelModal({
       setName('');
       setPrice('');
       setDescription('');
+      setImageUrl('');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Start Editing Existing Item
+  const startEditingItem = (item) => {
+    setEditingItem(item);
+    setEditName(item.name || '');
+    setEditCategory(item.category || 'Fast Food');
+    setEditPrice(item.price !== undefined ? item.price : '');
+    setEditDescription(item.description || '');
+    setEditImageUrl(item.image || '');
+    setEditBadge(item.badge || 'Chef Special');
+    setEditSpicy(item.spicy || 'Mild');
+    setEditFeedbackMsg('');
+  };
+
+  const cancelEditing = () => {
+    setEditingItem(null);
+    setEditFeedbackMsg('');
+  };
+
+  // Save Edited Item
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editName.trim() || !editPrice) {
+      setEditFeedbackMsg('Item name and price are required.');
+      return;
+    }
+
+    if (!editImageUrl.trim()) {
+      setEditFeedbackMsg('Please select a photo from your gallery.');
+      return;
+    }
+
+    setIsEditSubmitting(true);
+    setEditFeedbackMsg('');
+
+    const updatedData = {
+      ...editingItem,
+      name: editName.trim(),
+      category: editCategory.trim(),
+      price: Number(editPrice),
+      description: editDescription.trim(),
+      image: editImageUrl.trim(),
+      badge: editBadge.trim(),
+      spicy: editSpicy
+    };
+
+    try {
+      await onUpdateItem(updatedData);
+      setEditFeedbackMsg(`✓ "${updatedData.name}" changes saved successfully!`);
+      setTimeout(() => {
+        setEditingItem(null);
+        setEditFeedbackMsg('');
+      }, 1100);
+    } catch (err) {
+      console.warn('Update error:', err);
+      setEditFeedbackMsg('Failed to save changes. Please try again.');
+    } finally {
+      setIsEditSubmitting(false);
+    }
+  };
+
   if (!isOpen) return null;
+
+  // Filter items in Manage Tab
+  const filteredManageItems = items.filter((item) => {
+    const matchesCat = manageCategory === 'all' || item.category === manageCategory;
+    const q = manageSearch.toLowerCase().trim();
+    const matchesQuery = !q ||
+      item.name.toLowerCase().includes(q) ||
+      (item.category && item.category.toLowerCase().includes(q)) ||
+      String(item.price).includes(q);
+    return matchesCat && matchesQuery;
+  });
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px' }}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
         {/* Mobile Sheet Drag Indicator */}
         <div className="modal-drag-indicator" aria-hidden="true"></div>
 
@@ -157,7 +292,7 @@ export default function AdminPanelModal({
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2 className="modal-title">Oma's Admin Control Portal</h2>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>
-                Upload new dishes, modify prices, and monitor customer orders
+                Upload dishes from gallery, modify prices &amp; photos, or manage orders
               </span>
             </div>
           </div>
@@ -186,22 +321,22 @@ export default function AdminPanelModal({
           <div className="admin-tabs" style={{ marginBottom: 0 }}>
             <button
               type="button"
-              className={`admin-tab-btn ${activeTab === 'upload' ? 'active' : ''}`}
-              onClick={() => setActiveTab('upload')}
+              className={`admin-tab-btn ${activeTab === 'manage' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('manage'); cancelEditing(); }}
             >
-              ➕ Upload New Item
+              📋 Manage &amp; Edit Menu ({items.length})
             </button>
             <button
               type="button"
-              className={`admin-tab-btn ${activeTab === 'manage' ? 'active' : ''}`}
-              onClick={() => setActiveTab('manage')}
+              className={`admin-tab-btn ${activeTab === 'upload' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('upload'); cancelEditing(); }}
             >
-              📋 Manage Menu ({items.length})
+              ➕ Add New Dish
             </button>
             <button
               type="button"
               className={`admin-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
+              onClick={() => { setActiveTab('orders'); cancelEditing(); }}
             >
               📦 Live Orders {orders.length > 0 && `(${orders.length})`}
             </button>
@@ -210,7 +345,386 @@ export default function AdminPanelModal({
 
         {/* Body Content */}
         <div className="modal-body">
-          {/* TAB 1: UPLOAD NEW ITEM */}
+          {/* TAB 1: MANAGE / EDIT MENU */}
+          {activeTab === 'manage' && (
+            <div>
+              {/* If an item is currently selected for editing, show the Edit Form */}
+              {editingItem ? (
+                <form onSubmit={handleEditSubmit} className="admin-edit-form">
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '1.25rem',
+                    paddingBottom: '0.75rem',
+                    borderBottom: '1px solid var(--border-subtle)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={cancelEditing}
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.82rem' }}
+                      >
+                        ← Back to Items
+                      </button>
+                      <h3 style={{ fontSize: '1.15rem', color: '#fff', margin: 0 }}>
+                        Editing: <span style={{ color: 'var(--brand-gold)' }}>{editingItem.name}</span>
+                      </h3>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      ID: {editingItem.id}
+                    </span>
+                  </div>
+
+                  {editFeedbackMsg && (
+                    <div style={{
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid #10b981',
+                      color: '#6ee7b7',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '8px',
+                      fontSize: '0.88rem',
+                      marginBottom: '1.25rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <span>✓</span>
+                      <span>{editFeedbackMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="form-row-2">
+                    <div className="form-group">
+                      <label className="form-label">
+                        Dish Name <span className="required">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        className="form-input"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="e.g. Oma's Loaded Pizza"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">
+                        Category <span className="required">*</span>
+                      </label>
+                      <select
+                        className="form-select"
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                      >
+                        <option value="Fast Food">🍕 Fast Food (Pizza, Burgers, Shawarma)</option>
+                        <option value="Desi Food & BBQ">🍗 Desi Food &amp; BBQ (Karahi, Tikka, Boti)</option>
+                        <option value="Chinese">🥢 Chinese (Chowmein, Fried Rice, Gravy)</option>
+                        <option value="Beverages">🥤 Beverages &amp; Shakes</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-row-2">
+                    <div className="form-group">
+                      <label className="form-label">
+                        Price in PKR (Rs.) <span className="required">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        className="form-input"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        placeholder="e.g. 1450"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Special Tag / Badge</label>
+                      <select
+                        className="form-select"
+                        value={editBadge}
+                        onChange={(e) => setEditBadge(e.target.value)}
+                      >
+                        <option value="Chef Special">⭐ Chef Special</option>
+                        <option value="Bestseller">🔥 Bestseller</option>
+                        <option value="New">✨ New Arrival</option>
+                        <option value="Must Try">👌 Must Try</option>
+                        <option value="Daily Deal">🏷️ Daily Deal</option>
+                        <option value="">None</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* GALLERY IMAGE PICKER FOR EDITING */}
+                  <div className="form-group">
+                    <label className="form-label">
+                      Dish Photo (Select from Phone Gallery / Files) <span className="required">*</span>
+                    </label>
+
+                    <div className="gallery-picker-box">
+                      {editImageUrl ? (
+                        <div className="gallery-preview-container">
+                          <img
+                            src={editImageUrl}
+                            alt="Dish"
+                            className="gallery-preview-thumb"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                          <div className="gallery-preview-info">
+                            <span className="gallery-preview-status">✓ Photo Loaded from Gallery</span>
+                            <label htmlFor="file-edit-gallery-input" className="btn-secondary gallery-btn-change">
+                              🖼️ Choose New Photo from Gallery
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <label htmlFor="file-edit-gallery-input" className="gallery-dropzone-label">
+                          <div className="gallery-upload-icon">📸</div>
+                          <div className="gallery-upload-title">Tap to Choose Image from Gallery</div>
+                          <div className="gallery-upload-subtitle">Supports JPG, PNG, WebP from your phone or PC</div>
+                        </label>
+                      )}
+
+                      <input
+                        id="file-edit-gallery-input"
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleFileUpload(e, true)}
+                      />
+                    </div>
+
+                    {/* Optional URL input for convenience */}
+                    <div style={{ marginTop: '0.65rem' }}>
+                      <details style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <summary style={{ cursor: 'pointer', color: 'var(--brand-gold)', fontWeight: 600 }}>
+                          🔗 Or enter direct image link (Optional)
+                        </summary>
+                        <input
+                          type="url"
+                          className="form-input"
+                          style={{ marginTop: '0.45rem', fontSize: '0.82rem' }}
+                          placeholder="https://..."
+                          value={editImageUrl}
+                          onChange={(e) => setEditImageUrl(e.target.value)}
+                        />
+                      </details>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Description / Ingredients</label>
+                    <textarea
+                      rows={2}
+                      className="form-textarea"
+                      placeholder="Describe taste, marinade, seasonings, and toppings..."
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Real-time Preview */}
+                  <div className="admin-preview-wrap">
+                    <div className="preview-badge-tag">👁️ Live Updated Card Preview</div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      background: 'var(--bg-card)',
+                      padding: '0.85rem',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-subtle)'
+                    }}>
+                      <img
+                        src={editImageUrl || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80'}
+                        alt="Preview"
+                        style={{ width: '80px', height: '80px', borderRadius: '8px', objectFit: 'cover' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--brand-gold)', textTransform: 'uppercase', fontWeight: 700 }}>
+                          {editCategory} {editBadge && `• ${editBadge}`}
+                        </div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>
+                          {editName || 'Dish Name'}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {editDescription || 'No description provided.'}
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--brand-gold)', marginTop: '0.2rem' }}>
+                          Rs. {editPrice ? Number(editPrice).toLocaleString() : '0'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={cancelEditing}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={isEditSubmitting}
+                      style={{ minWidth: '150px' }}
+                    >
+                      {isEditSubmitting ? 'Saving Changes...' : '✓ Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Items List View */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {/* Search and Category Filter Bar */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.65rem',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingBottom: '0.75rem',
+                    borderBottom: '1px solid var(--border-subtle)'
+                  }}>
+                    <div style={{ flex: '1 1 240px', minWidth: '200px' }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="🔍 Search dishes by name or price..."
+                        value={manageSearch}
+                        onChange={(e) => setManageSearch(e.target.value)}
+                        style={{ padding: '0.5rem 0.85rem', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {['all', 'Fast Food', 'Desi Food & BBQ', 'Chinese', 'Beverages'].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`btn-secondary ${manageCategory === cat ? 'active' : ''}`}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            fontSize: '0.75rem',
+                            borderColor: manageCategory === cat ? 'var(--brand-gold)' : 'var(--border-subtle)',
+                            color: manageCategory === cat ? 'var(--brand-gold)' : 'var(--text-muted)',
+                            background: manageCategory === cat ? 'rgba(255, 183, 3, 0.12)' : 'transparent'
+                          }}
+                          onClick={() => setManageCategory(cat)}
+                        >
+                          {cat === 'all' ? `All (${items.length})` : cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* List of Items */}
+                  <div style={{ maxHeight: '440px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    {filteredManageItems.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                        <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>🔍</span>
+                        No menu items found matching "{manageSearch}".
+                      </div>
+                    ) : (
+                      filteredManageItems.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            background: 'var(--bg-main)',
+                            border: '1px solid var(--border-subtle)',
+                            padding: '0.65rem 0.95rem',
+                            borderRadius: '10px',
+                            gap: '0.85rem'
+                          }}
+                        >
+                          {/* Left: Thumbnail & Details */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80';
+                              }}
+                            />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.name}
+                              </div>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                <span style={{ color: 'var(--brand-gold)' }}>Rs. {Number(item.price).toLocaleString()}</span>
+                                <span style={{ margin: '0 0.35rem' }}>&bull;</span>
+                                <span>{item.category}</span>
+                                {item.badge && (
+                                  <span style={{ marginLeft: '0.45rem', fontSize: '0.68rem', padding: '0.15rem 0.4rem', background: 'rgba(255, 183, 3, 0.15)', color: 'var(--brand-gold)', borderRadius: '4px' }}>
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Edit & Delete Action Buttons */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                fontSize: '0.82rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                background: 'rgba(255, 255, 255, 0.06)',
+                                borderColor: 'rgba(255, 255, 255, 0.15)',
+                                color: '#fff'
+                              }}
+                              onClick={() => startEditingItem(item)}
+                              title="Edit item price, image, or details"
+                            >
+                              <span>✏️</span>
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="cart-remove-btn"
+                              onClick={() => setItemToDelete(item)}
+                              title="Delete dish from menu"
+                              style={{
+                                fontSize: '1rem',
+                                padding: '0.4rem 0.65rem',
+                                background: 'rgba(229, 9, 20, 0.12)',
+                                borderColor: 'rgba(229, 9, 20, 0.35)',
+                                color: '#ff6b75'
+                              }}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: ADD NEW DISH (WITH GALLERY IMAGE PICKER) */}
           {activeTab === 'upload' && (
             <form onSubmit={handleUploadSubmit}>
               {feedbackMsg && (
@@ -295,54 +809,62 @@ export default function AdminPanelModal({
                 </div>
               </div>
 
-              {/* Image Input Section */}
+              {/* GALLERY IMAGE PICKER FOR NEW DISH */}
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>
-                    Food Image URL / Quick Presets <span className="required">*</span>
-                  </label>
-                  <label 
-                    htmlFor="file-upload-input" 
-                    style={{ fontSize: '0.78rem', color: 'var(--brand-gold)', cursor: 'pointer', fontWeight: 600 }}
-                  >
-                    📁 Upload from Computer
-                  </label>
+                <label className="form-label">
+                  Dish Photo (Select from Phone Gallery / Files) <span className="required">*</span>
+                </label>
+
+                <div className="gallery-picker-box">
+                  {imageUrl ? (
+                    <div className="gallery-preview-container">
+                      <img
+                        src={imageUrl}
+                        alt="Dish"
+                        className="gallery-preview-thumb"
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80';
+                        }}
+                      />
+                      <div className="gallery-preview-info">
+                        <span className="gallery-preview-status">✓ Photo Selected from Gallery</span>
+                        <label htmlFor="file-upload-gallery-input" className="btn-secondary gallery-btn-change">
+                          🖼️ Change Gallery Photo
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <label htmlFor="file-upload-gallery-input" className="gallery-dropzone-label">
+                      <div className="gallery-upload-icon">📸</div>
+                      <div className="gallery-upload-title">Tap to Choose Image from Gallery</div>
+                      <div className="gallery-upload-subtitle">Tap here to select dish photo from phone gallery or computer</div>
+                    </label>
+                  )}
+
                   <input
-                    id="file-upload-input"
+                    id="file-upload-gallery-input"
                     type="file"
                     accept="image/*"
                     style={{ display: 'none' }}
-                    onChange={handleFileUpload}
+                    onChange={(e) => handleFileUpload(e, false)}
                   />
                 </div>
 
-                <input
-                  type="url"
-                  required
-                  className="form-input"
-                  placeholder="https://images.unsplash.com/photo-..."
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                />
-
-                {/* Quick Royalty-Free Preset Food Photos */}
-                <div style={{ marginTop: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Or select a royalty-free HD food photo preset:
-                  </span>
-                  <div className="image-presets-grid">
-                    {QUICK_IMAGE_PRESETS.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        className={`preset-thumb-btn ${imageUrl === preset.url ? 'selected' : ''}`}
-                        onClick={() => setImageUrl(preset.url)}
-                        title={preset.label}
-                      >
-                        <img src={preset.url} alt={preset.label} />
-                      </button>
-                    ))}
-                  </div>
+                {/* Optional URL input for convenience */}
+                <div style={{ marginTop: '0.65rem' }}>
+                  <details style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <summary style={{ cursor: 'pointer', color: 'var(--brand-gold)', fontWeight: 600 }}>
+                      🔗 Or enter direct image link (Optional)
+                    </summary>
+                    <input
+                      type="url"
+                      className="form-input"
+                      style={{ marginTop: '0.45rem', fontSize: '0.82rem' }}
+                      placeholder="https://..."
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                    />
+                  </details>
                 </div>
               </div>
 
@@ -409,57 +931,6 @@ export default function AdminPanelModal({
                 </button>
               </div>
             </form>
-          )}
-
-          {/* TAB 2: MANAGE MENU */}
-          {activeTab === 'manage' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                All active items on the restaurant menu. You can remove or adjust items anytime.
-              </div>
-              <div style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'var(--bg-main)',
-                      border: '1px solid var(--border-subtle)',
-                      padding: '0.65rem 0.95rem',
-                      borderRadius: '10px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        style={{ width: '45px', height: '45px', borderRadius: '6px', objectFit: 'cover' }}
-                      />
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#fff' }}>
-                          {item.name}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          <span style={{ color: 'var(--brand-gold)' }}>{item.category}</span> &bull; Rs. {Number(item.price).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="cart-remove-btn"
-                      onClick={() => onDeleteItem(item.id)}
-                      title="Delete item from menu"
-                      style={{ fontSize: '1.1rem', padding: '0.35rem 0.65rem' }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
           )}
 
           {/* TAB 3: LIVE ORDERS */}
@@ -536,6 +1007,70 @@ export default function AdminPanelModal({
             </div>
           )}
         </div>
+
+        {/* Delete Confirmation Modal Overlay */}
+        {itemToDelete && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.82)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1.5rem',
+            borderRadius: 'inherit'
+          }}>
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid rgba(229, 9, 20, 0.4)',
+              borderRadius: '16px',
+              padding: '1.75rem',
+              maxWidth: '420px',
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.9)'
+            }}>
+              <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>🗑️</span>
+              <h3 style={{ color: '#fff', fontSize: '1.2rem', marginBottom: '0.5rem' }}>
+                Delete Menu Item?
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.4rem', lineHeight: 1.5 }}>
+                Are you sure you want to permanently remove <strong>"{itemToDelete.name}"</strong>? Customers will no longer see or order this item.
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setItemToDelete(null)}
+                  style={{ flex: 1, padding: '0.6rem 1rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    background: 'var(--brand-red)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '0.6rem 1rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    onDeleteItem(itemToDelete.id);
+                    setItemToDelete(null);
+                  }}
+                >
+                  Yes, Delete Dish
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

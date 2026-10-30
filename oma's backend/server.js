@@ -217,6 +217,10 @@ app.put('/api/items/:id', (req, res) => {
     return res.status(404).json({ success: false, message: 'Item not found' });
   }
 
+  if (updates.price !== undefined) {
+    updates.price = Number(updates.price);
+  }
+
   items[index] = {
     ...items[index],
     ...updates,
@@ -224,6 +228,7 @@ app.put('/api/items/:id', (req, res) => {
   };
 
   writeJSON(MENU_FILE, items);
+  console.log(`✏️ Menu Item Updated: "${items[index].name}" - Rs. ${items[index].price}`);
   res.json({ success: true, message: 'Item updated successfully', item: items[index] });
 });
 
@@ -232,13 +237,17 @@ app.delete('/api/items/:id', (req, res) => {
   const { id } = req.params;
   const items = readJSON(MENU_FILE);
 
-  const filtered = items.filter(item => item.id !== id);
-  if (filtered.length === items.length) {
+  const index = items.findIndex(item => item.id === id);
+  if (index === -1) {
     return res.status(404).json({ success: false, message: 'Item not found' });
   }
 
+  const deletedItem = items[index];
+  const filtered = items.filter(item => item.id !== id);
+
   writeJSON(MENU_FILE, filtered);
-  res.json({ success: true, message: 'Item removed from menu' });
+  console.log(`🗑️ Menu Item Deleted: "${deletedItem.name}" (${deletedItem.id})`);
+  res.json({ success: true, message: 'Item removed from menu', id });
 });
 
 // -------------------------------------------------------------
