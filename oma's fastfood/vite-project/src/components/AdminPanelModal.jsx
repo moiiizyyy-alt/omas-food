@@ -253,26 +253,25 @@ export default function AdminPanelModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+      <div className="modal-card admin-modal-card" onClick={(e) => e.stopPropagation()}>
         {/* Mobile Sheet Drag Indicator */}
         <div className="modal-drag-indicator" aria-hidden="true"></div>
 
         {/* Header */}
         <div className="modal-header">
           <div className="modal-title-col">
-            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>👨‍🍳</span>
+            <span style={{ fontSize: '1.45rem', flexShrink: 0 }}>👨‍🍳</span>
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2 className="modal-title">Oma's Admin Control Portal</h2>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>
+              <span className="admin-header-subtitle">
                 Upload dishes from gallery, modify prices &amp; photos, or manage orders
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <div className="admin-header-actions">
             <button
               type="button"
-              className="btn-secondary"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+              className="admin-logout-btn"
               onClick={onLogout}
               title="Lock Admin Portal"
             >
@@ -282,6 +281,7 @@ export default function AdminPanelModal({
               type="button" 
               className="btn-drawer-close"
               onClick={onClose}
+              aria-label="Close Admin Portal"
             >
               ✕
             </button>
@@ -289,14 +289,14 @@ export default function AdminPanelModal({
         </div>
 
         {/* Tab Navigation */}
-        <div style={{ padding: '0 1.75rem', background: 'var(--bg-main)' }}>
-          <div className="admin-tabs" style={{ marginBottom: 0 }}>
+        <div className="admin-tabs-wrapper">
+          <div className="admin-tabs">
             <button
               type="button"
               className={`admin-tab-btn ${activeTab === 'manage' ? 'active' : ''}`}
               onClick={() => { setActiveTab('manage'); cancelEditing(); }}
             >
-              📋 Manage &amp; Edit Menu ({items.length})
+              📋 Manage Menu ({items.length})
             </button>
             <button
               type="button"
@@ -505,31 +505,23 @@ export default function AdminPanelModal({
                   {/* Real-time Preview */}
                   <div className="admin-preview-wrap">
                     <div className="preview-badge-tag">👁️ Live Updated Card Preview</div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '1rem',
-                      background: 'var(--bg-card)',
-                      padding: '0.85rem',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-subtle)'
-                    }}>
+                    <div className="admin-preview-card">
                       <img
                         src={editImageUrl || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80'}
                         alt="Preview"
-                        style={{ width: '80px', height: '80px', borderRadius: '8px', objectFit: 'cover' }}
+                        className="admin-preview-card-img"
                       />
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="admin-preview-card-details">
                         <div style={{ fontSize: '0.72rem', color: 'var(--brand-gold)', textTransform: 'uppercase', fontWeight: 700 }}>
                           {editCategory} {editBadge && `• ${editBadge}`}
                         </div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', margin: '0.15rem 0' }}>
                           {editName || 'Dish Name'}
                         </div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {editDescription || 'No description provided.'}
                         </div>
-                        <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--brand-gold)', marginTop: '0.2rem' }}>
+                        <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--brand-gold)', marginTop: '0.2rem' }}>
                           Rs. {editPrice ? Number(editPrice).toLocaleString() : '0'}
                         </div>
                       </div>
@@ -557,18 +549,10 @@ export default function AdminPanelModal({
                 </form>
               ) : (
                 /* Items List View */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {/* Search and Category Filter Bar */}
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.65rem',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingBottom: '0.75rem',
-                    borderBottom: '1px solid var(--border-subtle)'
-                  }}>
-                    <div style={{ flex: '1 1 240px', minWidth: '200px' }}>
+                  <div className="admin-filter-bar">
+                    <div className="admin-search-input-wrap">
                       <input
                         type="text"
                         className="form-input"
@@ -579,19 +563,12 @@ export default function AdminPanelModal({
                       />
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <div className="admin-category-chips">
                       {['all', 'Fast Food', 'Desi Food & BBQ', 'Chinese', 'Beverages'].map((cat) => (
                         <button
                           key={cat}
                           type="button"
-                          className={`btn-secondary ${manageCategory === cat ? 'active' : ''}`}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            fontSize: '0.75rem',
-                            borderColor: manageCategory === cat ? 'var(--brand-gold)' : 'var(--border-subtle)',
-                            color: manageCategory === cat ? 'var(--brand-gold)' : 'var(--text-muted)',
-                            background: manageCategory === cat ? 'rgba(255, 183, 3, 0.12)' : 'transparent'
-                          }}
+                          className={`admin-category-chip ${manageCategory === cat ? 'active' : ''}`}
                           onClick={() => setManageCategory(cat)}
                         >
                           {cat === 'all' ? `All (${items.length})` : cat}
@@ -601,7 +578,7 @@ export default function AdminPanelModal({
                   </div>
 
                   {/* List of Items */}
-                  <div style={{ maxHeight: '440px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div className="admin-items-list">
                     {filteredManageItems.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
                         <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>🔍</span>
@@ -609,39 +586,27 @@ export default function AdminPanelModal({
                       </div>
                     ) : (
                       filteredManageItems.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            background: 'var(--bg-main)',
-                            border: '1px solid var(--border-subtle)',
-                            padding: '0.65rem 0.95rem',
-                            borderRadius: '10px',
-                            gap: '0.85rem'
-                          }}
-                        >
+                        <div key={item.id} className="admin-item-row">
                           {/* Left: Thumbnail & Details */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
+                          <div className="admin-item-left">
                             <img
                               src={item.image}
                               alt={item.name}
-                              style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
+                              className="admin-item-thumb"
                               onError={(e) => {
                                 e.target.src = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80';
                               }}
                             />
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div className="admin-item-info">
+                              <div className="admin-item-title">
                                 {item.name}
                               </div>
-                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                <span style={{ color: 'var(--brand-gold)' }}>Rs. {Number(item.price).toLocaleString()}</span>
-                                <span style={{ margin: '0 0.35rem' }}>&bull;</span>
+                              <div className="admin-item-meta">
+                                <span className="admin-item-price">Rs. {Number(item.price).toLocaleString()}</span>
+                                <span>&bull;</span>
                                 <span>{item.category}</span>
                                 {item.badge && (
-                                  <span style={{ marginLeft: '0.45rem', fontSize: '0.68rem', padding: '0.15rem 0.4rem', background: 'rgba(255, 183, 3, 0.15)', color: 'var(--brand-gold)', borderRadius: '4px' }}>
+                                  <span className="admin-item-badge">
                                     {item.badge}
                                   </span>
                                 )}
@@ -650,20 +615,10 @@ export default function AdminPanelModal({
                           </div>
 
                           {/* Right: Edit & Delete Action Buttons */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                          <div className="admin-item-actions">
                             <button
                               type="button"
-                              className="btn-secondary"
-                              style={{
-                                padding: '0.4rem 0.8rem',
-                                fontSize: '0.82rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                background: 'rgba(255, 255, 255, 0.06)',
-                                borderColor: 'rgba(255, 255, 255, 0.15)',
-                                color: '#fff'
-                              }}
+                              className="admin-btn-edit"
                               onClick={() => startEditingItem(item)}
                               title="Edit item price, image, or details"
                             >
@@ -673,16 +628,9 @@ export default function AdminPanelModal({
 
                             <button
                               type="button"
-                              className="cart-remove-btn"
+                              className="admin-btn-delete"
                               onClick={() => setItemToDelete(item)}
                               title="Delete dish from menu"
-                              style={{
-                                fontSize: '1rem',
-                                padding: '0.4rem 0.65rem',
-                                background: 'rgba(229, 9, 20, 0.12)',
-                                borderColor: 'rgba(229, 9, 20, 0.35)',
-                                color: '#ff6b75'
-                              }}
                             >
                               🗑️
                             </button>
@@ -854,31 +802,23 @@ export default function AdminPanelModal({
               {/* Real-time Card Preview */}
               <div className="admin-preview-wrap">
                 <div className="preview-badge-tag">👁️ Live Card Preview in Menu</div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                  background: 'var(--bg-card)',
-                  padding: '0.85rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-subtle)'
-                }}>
+                <div className="admin-preview-card">
                   <img
                     src={imageUrl || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80'}
                     alt="Preview"
-                    style={{ width: '80px', height: '80px', borderRadius: '8px', objectFit: 'cover' }}
+                    className="admin-preview-card-img"
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="admin-preview-card-details">
                     <div style={{ fontSize: '0.72rem', color: 'var(--brand-gold)', textTransform: 'uppercase', fontWeight: 700 }}>
                       {category} &bull; {badge}
                     </div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {name || 'New Dish Name'}
                     </div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {description || 'Item description will appear here.'}
                     </div>
-                    <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
                       Rs. {price ? Number(price).toLocaleString() : '0'}
                     </div>
                   </div>
@@ -913,35 +853,26 @@ export default function AdminPanelModal({
                   Loading received orders...
                 </div>
               ) : orders.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
                   <span style={{ fontSize: '3rem', display: 'block', marginBottom: '0.5rem' }}>📭</span>
                   No customer orders received yet. Once customers place orders, tickets will appear here!
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '440px', overflowY: 'auto' }}>
+                <div className="admin-orders-list">
                   {orders.map((o) => (
-                    <div
-                      key={o.orderId}
-                      style={{
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '12px',
-                        padding: '1rem'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.65rem' }}>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>
+                    <div key={o.orderId} className="admin-order-card">
+                      <div className="admin-order-top">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div className="admin-order-id">
                             Order #{o.orderId}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          <div className="admin-order-date">
                             {new Date(o.createdAt).toLocaleString()} &bull; <strong>{o.customer.name}</strong> ({o.customer.phone})
                           </div>
                         </div>
 
                         <select
-                          className="form-select"
-                          style={{ width: 'auto', padding: '0.35rem 0.65rem', fontSize: '0.8rem' }}
+                          className="admin-order-status-select"
                           value={o.status}
                           onChange={(e) => handleStatusChange(o.orderId, e.target.value)}
                         >
@@ -953,22 +884,22 @@ export default function AdminPanelModal({
                         </select>
                       </div>
 
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.45rem' }}>
+                      <div className="admin-order-info-line">
                         📍 <strong>Address:</strong> {o.customer.address}
                       </div>
 
-                      <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', padding: '0.65rem', fontSize: '0.82rem' }}>
+                      <div className="admin-order-items-box">
                         <strong>Items:</strong>
-                        <ul style={{ paddingLeft: '1.25rem', marginTop: '0.25rem' }}>
+                        <ul style={{ paddingLeft: '1.25rem', marginTop: '0.25rem', marginBottom: 0 }}>
                           {o.items.map((it, idx) => (
                             <li key={idx}>
-                              {it.name} (x{it.quantity}) - Rs. {it.price * it.quantity}
+                              {it.name} (x{it.quantity}) - Rs. {(it.price * it.quantity).toLocaleString()}
                             </li>
                           ))}
                         </ul>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.65rem', fontWeight: 800, fontSize: '0.95rem' }}>
+                      <div className="admin-order-total-bar">
                         <span>Total (Cash on Delivery):</span>
                         <span style={{ color: 'var(--brand-gold)' }}>Rs. {o.grandTotal.toLocaleString()}</span>
                       </div>
@@ -985,49 +916,49 @@ export default function AdminPanelModal({
           <div style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.82)',
-            backdropFilter: 'blur(5px)',
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 100,
-            padding: '1.5rem',
+            padding: '1rem',
             borderRadius: 'inherit'
           }}>
             <div style={{
               background: 'var(--bg-card)',
               border: '1px solid rgba(229, 9, 20, 0.4)',
               borderRadius: '16px',
-              padding: '1.75rem',
-              maxWidth: '420px',
+              padding: '1.5rem',
+              maxWidth: '400px',
               width: '100%',
               textAlign: 'center',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.9)'
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.95)'
             }}>
               <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>🗑️</span>
-              <h3 style={{ color: '#fff', fontSize: '1.2rem', marginBottom: '0.5rem' }}>
+              <h3 style={{ color: '#fff', fontSize: '1.15rem', marginBottom: '0.5rem' }}>
                 Delete Menu Item?
               </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.4rem', lineHeight: 1.5 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
                 Are you sure you want to permanently remove <strong>"{itemToDelete.name}"</strong>? Customers will no longer see or order this item.
               </p>
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="btn-secondary"
                   onClick={() => setItemToDelete(null)}
-                  style={{ flex: 1, padding: '0.6rem 1rem' }}
+                  style={{ flex: '1 1 120px', padding: '0.55rem 1rem' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   style={{
-                    flex: 1,
+                    flex: '1 1 120px',
                     background: 'var(--brand-red)',
                     color: '#fff',
                     border: 'none',
-                    padding: '0.6rem 1rem',
+                    padding: '0.55rem 1rem',
                     borderRadius: '8px',
                     fontWeight: 700,
                     cursor: 'pointer'
