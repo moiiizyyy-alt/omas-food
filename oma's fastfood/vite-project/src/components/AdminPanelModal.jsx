@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getLiveOrders, updateLiveOrderStatus } from '../services/cloudSync';
 
 export default function AdminPanelModal({
   isOpen,
@@ -62,11 +63,8 @@ export default function AdminPanelModal({
   const fetchOrders = async () => {
     setLoadingOrders(true);
     try {
-      const res = await fetch('/api/orders');
-      const data = await res.json();
-      if (data.success && data.orders) {
-        setOrders(data.orders);
-      }
+      const liveOrders = await getLiveOrders();
+      setOrders(liveOrders);
     } catch (err) {
       console.warn('Could not fetch orders:', err);
     } finally {
@@ -75,16 +73,11 @@ export default function AdminPanelModal({
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.orderId === orderId || o.id === orderId ? { ...o, status: newStatus } : o))
+    );
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setOrders(orders.map(o => o.orderId === orderId ? { ...o, status: newStatus } : o));
-      }
+      await updateLiveOrderStatus(orderId, newStatus);
     } catch (err) {
       console.warn('Error updating order status:', err);
     }
@@ -159,44 +152,23 @@ export default function AdminPanelModal({
     };
 
     try {
-      const res = await fetch('/api/items', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(itemData)
-      });
+      const newItem = {
+        id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        rating: 5.0,
+        reviews: 1,
+        ...itemData
+      };
 
-      const data = await res.json();
-
-      if (data.success && data.item) {
-        onAddItem(data.item);
-        setFeedbackMsg(`✓ "${data.item.name}" added successfully with gallery photo!`);
-      } else {
-        const localItem = {
-          id: `item-${Date.now()}`,
-          rating: 5.0,
-          reviews: 1,
-          ...itemData
-        };
-        onAddItem(localItem);
-        setFeedbackMsg(`✓ "${localItem.name}" added to menu!`);
-      }
+      await onAddItem(newItem);
+      setFeedbackMsg(`✓ "${newItem.name}" added successfully and synced across all devices!`);
 
       setName('');
       setPrice('');
       setDescription('');
       setImageUrl('');
     } catch (err) {
-      console.warn('Backend /api/items POST error, adding locally:', err);
-      const fallbackItem = {
-        id: `item-${Date.now()}`,
-        rating: 5.0,
-        reviews: 1,
-        ...itemData
-      };
-      onAddItem(fallbackItem);
-      setFeedbackMsg(`✓ "${fallbackItem.name}" added to menu!`);
+      console.warn('Error in add item:', err);
+      setFeedbackMsg('Item added to menu!');
       setName('');
       setPrice('');
       setDescription('');

@@ -1,0 +1,14 @@
+{
+  "name": "omas-food-pos-root",
+  "version": "1.0.0",
+  "description": "Root runner for Oma's Pizza & Fast Food POS (Frontend + Backend)",
+  "scripts": {
+    "dev:backend": "cd \"oma's backend\" && node server.js",
+    "dev:frontend": "cd \"oma's fastfood/vite-project\" && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "cd \"oma's fastfood/vite-project\" && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

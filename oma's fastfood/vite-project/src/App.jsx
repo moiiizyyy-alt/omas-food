@@ -10,6 +10,13 @@ import AdminLoginModal from './components/AdminLoginModal';
 import AdminPanelModal from './components/AdminPanelModal';
 import Footer from './components/Footer';
 import { DEFAULT_MENU } from './data/defaultMenu';
+import {
+  getLiveMenuItems,
+  addMenuItemCloud,
+  updateMenuItemCloud,
+  deleteMenuItemCloud,
+  saveLiveOrder
+} from './services/cloudSync';
 
 export default function App() {
   // Menu items state (Persisted with localStorage fallback)
@@ -76,23 +83,43 @@ export default function App() {
     }
   }, [items]);
 
-  // Load menu from backend on initial mount
+  // Load menu from Cloud & setup real-time live synchronization
   useEffect(() => {
-    fetchMenuItems();
+    fetchMenuItems(true);
+
+    // Live background polling every 6 seconds so any change made on mobile shows to all users immediately
+    const pollTimer = setInterval(() => {
+      fetchMenuItems(false);
+    }, 6000);
+
+    // Immediate sync whenever user switches back to this tab
+    const handleVisibilitySync = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMenuItems(false);
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilitySync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+
+    return () => {
+      clearInterval(pollTimer);
+      window.removeEventListener('focus', handleVisibilitySync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
+    };
   }, []);
 
-  const fetchMenuItems = async () => {
-    setLoadingItems(true);
+  const fetchMenuItems = async (showLoading = false) => {
+    if (showLoading) setLoadingItems(true);
     try {
-      const res = await fetch('/api/items');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.items) && data.items.length > 0) {
-        setItems(data.items);
+      const liveItems = await getLiveMenuItems();
+      if (Array.isArray(liveItems) && liveItems.length > 0) {
+        setItems(liveItems);
       }
     } catch (err) {
-      console.log('Using pre-seeded default menu data (Backend syncing in background)');
+      console.warn('Sync notice: Using current cached menu', err);
     } finally {
-      setLoadingItems(false);
+      if (showLoading) setLoadingItems(false);
     }
   };
 
@@ -140,6 +167,8 @@ export default function App() {
     setIsCheckoutOpen(false);
     handleClearCart();
     showToast(`Order #${order.orderId} confirmed successfully! 🧾`);
+    // Sync order to Cloud & dispatch email in background
+    saveLiveOrder(order).catch((err) => console.warn('Order sync note:', err));
   };
 
   // Admin flow
@@ -166,26 +195,32 @@ export default function App() {
     showToast('Admin logged out.');
   };
 
-  // Add new item (Admin)
-  const handleAddNewItem = (newItem) => {
-    setItems((prev) => [newItem, ...prev]);
-    setSelectedCategory(newItem.category);
-    showToast(`Item "${newItem.name}" is now live in menu!`);
+  // Add new item (Admin) - Syncs to Cloud instantly
+  const handleAddNewItem = async (newItem) => {
+    const itemWithId = {
+      id: newItem.id || `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      rating: 5.0,
+      reviews: 1,
+      ...newItem
+    };
+
+    // 1. Instant local update for admin
+    setItems((prev) => [itemWithId, ...prev.filter((i) => i.id !== itemWithId.id)]);
+    setSelectedCategory(itemWithId.category);
+    showToast(`"${itemWithId.name}" is now live on all devices! 🍕`);
+
+    // 2. Push to Cloud Database (real-time to all devices)
+    try {
+      const updatedList = await addMenuItemCloud(itemWithId);
+      if (Array.isArray(updatedList)) setItems(updatedList);
+    } catch (err) {
+      console.warn('Cloud sync error on add:', err);
+    }
   };
 
-  // Update existing item (Admin)
+  // Update existing item (Admin) - Syncs to Cloud instantly
   const handleUpdateItem = async (updatedItem) => {
-    try {
-      await fetch(`/api/items/${updatedItem.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedItem)
-      });
-    } catch (err) {
-      console.warn('Backend update error, updated locally:', err);
-    }
-
-    // Update in menu items
+    // 1. Instant local update
     setItems((prev) =>
       prev.map((i) => (i.id === updatedItem.id ? { ...i, ...updatedItem } : i))
     );
@@ -205,24 +240,34 @@ export default function App() {
       )
     );
 
-    showToast(`"${updatedItem.name}" updated successfully! ✏️`);
+    showToast(`"${updatedItem.name}" updated on all devices! ✏️`);
+
+    // 2. Push to Cloud Database
+    try {
+      const updatedList = await updateMenuItemCloud(updatedItem);
+      if (Array.isArray(updatedList)) setItems(updatedList);
+    } catch (err) {
+      console.warn('Cloud sync error on update:', err);
+    }
   };
 
-  // Delete item (Admin)
+  // Delete item (Admin) - Syncs to Cloud instantly
   const handleDeleteItem = async (itemId) => {
     const itemToDelete = items.find((i) => i.id === itemId);
     const itemName = itemToDelete ? itemToDelete.name : 'Item';
 
-    try {
-      await fetch(`/api/items/${itemId}`, { method: 'DELETE' });
-    } catch (err) {
-      console.warn('Backend delete error, removed locally:', err);
-    }
-
+    // 1. Instant local removal
     setItems((prev) => prev.filter((i) => i.id !== itemId));
-    // Remove from cart if present
     setCartItems((prev) => prev.filter((i) => i.id !== itemId));
-    showToast(`"${itemName}" deleted from menu.`);
+    showToast(`"${itemName}" deleted from menu across all devices.`);
+
+    // 2. Remove from Cloud Database
+    try {
+      const updatedList = await deleteMenuItemCloud(itemId);
+      if (Array.isArray(updatedList)) setItems(updatedList);
+    } catch (err) {
+      console.warn('Cloud sync error on delete:', err);
+    }
   };
 
   // Trigger quick edit on a specific food card

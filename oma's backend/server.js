@@ -250,6 +250,17 @@ app.delete('/api/items/:id', (req, res) => {
   res.json({ success: true, message: 'Item removed from menu', id });
 });
 
+// Full Menu Sync endpoint from cloud / admin
+app.post('/api/sync-menu', (req, res) => {
+  const { items } = req.body;
+  if (Array.isArray(items)) {
+    writeJSON(MENU_FILE, items);
+    console.log(`🔄 Entire Menu Synced (${items.length} items saved)`);
+    return res.json({ success: true, count: items.length });
+  }
+  res.status(400).json({ success: false, message: 'Invalid items array' });
+});
+
 // -------------------------------------------------------------
 // 4. ORDERS & EMAIL NOTIFICATION TO moiiizyyy@gmail.com
 // -------------------------------------------------------------
@@ -489,10 +500,11 @@ app.patch('/api/orders/:id/status', (req, res) => {
 // START SERVER (Local/Dedicated) & EXPORT (Vercel Serverless)
 // -------------------------------------------------------------
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n======================================================`);
     console.log(`🍕 Oma's Pizza & Fast Food Backend is RUNNING on port ${PORT}`);
     console.log(`🌐 Base URL: http://localhost:${PORT}`);
+    console.log(`📱 Local Network URL: http://192.168.0.105:${PORT}`);
     console.log(`🔒 Admin Credentials: admin@omas.com / Adminofomas1`);
     console.log(`📧 Order Notification Target: moiiizyyy@gmail.com`);
     console.log(`======================================================\n`);
