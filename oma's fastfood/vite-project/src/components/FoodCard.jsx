@@ -46,10 +46,10 @@ export default function FoodCard({
         />
 
         {/* Floating Badge */}
-        {item.badge && (
-          <span className={`card-badge ${getBadgeClass(item.badge)}`}>
+        {(item.badge || (typeof item.id === 'string' && item.id.length > 10)) && (
+          <span className={`card-badge ${getBadgeClass(item.badge || 'New')}`}>
             <span>⭐</span>
-            <span>{item.badge}</span>
+            <span>{item.badge || '✨ New Arrival'}</span>
           </span>
         )}
 

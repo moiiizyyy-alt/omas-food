@@ -92,11 +92,11 @@ export default function AdminPanelModal({
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Optimize resolution to max 900px so phone camera photos (5-15MB) upload instantly
+        // Optimize resolution to max 600px & quality 0.72 for super-fast lightweight cloud sync (approx 35KB)
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const maxDim = 900;
+        const maxDim = 600;
 
         if (width > maxDim || height > maxDim) {
           if (width > height) {
@@ -112,7 +112,7 @@ export default function AdminPanelModal({
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.72);
 
         if (isEdit) {
           setEditImageUrl(optimizedDataUrl);

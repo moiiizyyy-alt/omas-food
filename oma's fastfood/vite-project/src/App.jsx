@@ -15,7 +15,8 @@ import {
   addMenuItemCloud,
   updateMenuItemCloud,
   deleteMenuItemCloud,
-  saveLiveOrder
+  saveLiveOrder,
+  subscribeToMenuChange
 } from './services/cloudSync';
 
 export default function App() {
@@ -87,12 +88,17 @@ export default function App() {
   useEffect(() => {
     fetchMenuItems(true);
 
-    // Live background polling every 6 seconds so any change made on mobile shows to all users immediately
+    // 1. Live background polling every 4 seconds for instant cross-device updates (phones, PCs, tablets)
     const pollTimer = setInterval(() => {
       fetchMenuItems(false);
-    }, 6000);
+    }, 4000);
 
-    // Immediate sync whenever user switches back to this tab
+    // 2. Instant cross-tab broadcast synchronization
+    const unsubscribeBroadcast = subscribeToMenuChange(() => {
+      fetchMenuItems(false);
+    });
+
+    // 3. Immediate sync whenever user switches back to this tab/window
     const handleVisibilitySync = () => {
       if (document.visibilityState === 'visible') {
         fetchMenuItems(false);
@@ -104,6 +110,7 @@ export default function App() {
 
     return () => {
       clearInterval(pollTimer);
+      unsubscribeBroadcast();
       window.removeEventListener('focus', handleVisibilitySync);
       document.removeEventListener('visibilitychange', handleVisibilitySync);
     };
@@ -276,19 +283,44 @@ export default function App() {
     setIsAdminPanelOpen(true);
   };
 
-  // Filter items by category & search query
-  const filteredItems = items.filter((item) => {
-    const matchesCategory =
-      selectedCategory === 'all' || item.category === selectedCategory;
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      item.name.toLowerCase().includes(q) ||
-      (item.category && item.category.toLowerCase().includes(q)) ||
-      (item.description && item.description.toLowerCase().includes(q));
+  // Filter items by category & search query, prioritizing newest items to the front
+  const isCustomOrNew = (it) => {
+    if (!it || !it.id) return false;
+    // Admin added items have timestamp IDs (length > 10 e.g. item-179...)
+    if (typeof it.id === 'string' && it.id.startsWith('item-') && it.id.length > 10) return true;
+    if (it.badge === 'New' || it.badge === 'New Arrival') return true;
+    return false;
+  };
 
-    return matchesCategory && matchesSearch;
-  });
+  const filteredItems = items
+    .filter((item) => {
+      // Category match (case-insensitive & whitespace-safe)
+      const matchesCategory =
+        !selectedCategory ||
+        selectedCategory === 'all' ||
+        (selectedCategory === 'Chef Special' && (item.badge === 'Chef Special' || item.badge === 'Must Try')) ||
+        (item.category && item.category.trim().toLowerCase() === selectedCategory.trim().toLowerCase());
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (item.name && item.name.toLowerCase().includes(q)) ||
+        (item.category && item.category.toLowerCase().includes(q)) ||
+        (item.description && item.description.toLowerCase().includes(q));
+
+      return matchesCategory && matchesSearch;
+    })
+    .sort((a, b) => {
+      // Prioritize newly added dishes at the very top
+      const aNew = isCustomOrNew(a);
+      const bNew = isCustomOrNew(b);
+      if (aNew && !bNew) return -1;
+      if (!aNew && bNew) return 1;
+      if (aNew && bNew) {
+        return String(b.id).localeCompare(String(a.id));
+      }
+      return 0;
+    });
 
   const cartItemsCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);

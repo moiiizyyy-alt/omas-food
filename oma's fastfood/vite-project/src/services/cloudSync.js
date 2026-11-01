@@ -7,14 +7,17 @@ const CLOUD_DB_TOKEN = 'gQAAAAAAAlxxAQIgcDI1MzdmYjkwNjA3NzU0MzEyOWE1MTk2NzMxZTUz
 const MENU_KEY = 'omas_menu';
 const ORDERS_KEY = 'omas_orders';
 
-// Helper: Upstash REST client
+// Helper: Upstash REST client with cache-busting & zero HTTP cache
 async function upstashCommand(command, key, value = null) {
   try {
-    let url = `${CLOUD_DB_URL}/${command.toLowerCase()}/${encodeURIComponent(key)}`;
+    const isGet = command.toUpperCase() === 'GET';
+    const cacheBuster = isGet ? `?_cb=${Date.now()}` : '';
+    let url = `${CLOUD_DB_URL}/${command.toLowerCase()}/${encodeURIComponent(key)}${cacheBuster}`;
     let options = {
       headers: {
         Authorization: `Bearer ${CLOUD_DB_TOKEN}`
-      }
+      },
+      cache: 'no-store'
     };
 
     if (value !== null) {
@@ -32,12 +35,36 @@ async function upstashCommand(command, key, value = null) {
   }
 }
 
+// Cross-tab broadcast channel for instant same-browser multi-tab updates
+const syncBroadcast = typeof window !== 'undefined' && 'BroadcastChannel' in window 
+  ? new BroadcastChannel('omas_realtime_sync') 
+  : null;
+
+export function broadcastMenuChange() {
+  try {
+    if (syncBroadcast) {
+      syncBroadcast.postMessage({ type: 'MENU_UPDATED', timestamp: Date.now() });
+    }
+  } catch {}
+}
+
+export function subscribeToMenuChange(callback) {
+  if (!syncBroadcast) return () => {};
+  const handler = (e) => {
+    if (e.data && e.data.type === 'MENU_UPDATED') {
+      callback();
+    }
+  };
+  syncBroadcast.addEventListener('message', handler);
+  return () => syncBroadcast.removeEventListener('message', handler);
+}
+
 /**
- * 1. Fetch latest menu items from Cloud Database
+ * 1. Fetch latest menu items from Cloud Database (Never cached, Always live)
  */
 export async function getLiveMenuItems() {
   try {
-    // 1. Try Cloud Database first (Global Realtime Source)
+    // 1. Try Cloud Database first (Global Realtime Source with cache-busting)
     const rawData = await upstashCommand('GET', MENU_KEY);
     if (rawData) {
       const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
@@ -51,7 +78,7 @@ export async function getLiveMenuItems() {
 
     // 2. Fallback to local /api/items if cloud is unreachable
     try {
-      const res = await fetch('/api/items');
+      const res = await fetch(`/api/items?_cb=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success && Array.isArray(data.items) && data.items.length > 0) {
         return data.items;
@@ -84,7 +111,10 @@ export async function syncMenuItemsToCloud(items) {
   // 1. Push to Cloud Database (Real-time sync to all devices worldwide)
   const cloudRes = await upstashCommand('SET', MENU_KEY, JSON.stringify(items));
 
-  // 2. Also notify local backend if running
+  // 2. Broadcast across tabs immediately
+  broadcastMenuChange();
+
+  // 3. Also notify local backend if running
   try {
     fetch('/api/sync-menu', {
       method: 'POST',
