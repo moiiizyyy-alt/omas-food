@@ -1,149 +1,61 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useApp } from '../lib/store.jsx';
+import { useUI } from '../lib/ui.jsx';
+import { assetUrl, money } from '../lib/api.js';
+import { hashStr } from '../lib/seo.js';
+import { Icon } from './Navbar.jsx';
 
-export default function FoodCard({
-  item,
-  cartItem,
-  onAddToCart,
-  onUpdateQuantity,
-  isAdminLoggedIn = false,
-  onAdminEdit = null
-}) {
-  const [clickedFeedback, setClickedFeedback] = useState(false);
-  const quantity = cartItem ? cartItem.quantity : 0;
+const RATIOS = ['4 / 5', '1 / 1', '5 / 6', '3 / 4', '1 / 1', '4 / 5']; // varied heights = masonry rhythm
 
-  // Handle clicking on the image directly as a quick-add button
-  const handleImageClick = () => {
-    onAddToCart(item);
-    setClickedFeedback(true);
-    setTimeout(() => setClickedFeedback(false), 600);
-  };
+export const hasOptions = (p) => !!(p.sizes?.length > 1 || p.toppings?.length || p.cheeseOptions?.length);
 
-  const getBadgeClass = (badge) => {
-    if (!badge) return '';
-    const lower = badge.toLowerCase();
-    if (lower.includes('chef') || lower.includes('special')) return 'chef-special';
-    if (lower.includes('bestseller') || lower.includes('must') || lower.includes('popular')) return 'bestseller';
-    return '';
-  };
+export function Thumb({ src, alt, ratio, eager }) {
+  const [bad, setBad] = useState(false);
+  return (
+    <div className="thumb" style={{ aspectRatio: ratio }}>
+      {src && !bad
+        ? <img src={assetUrl(src)} alt={alt} loading={eager ? 'eager' : 'lazy'} decoding="async" onError={() => setBad(true)} />
+        : <div className="thumb-fallback" role="img" aria-label={alt}><Icon name="pizza" size={36} /></div>}
+    </div>
+  );
+}
+
+export function DietDot({ diet }) {
+  return <span className={`diet ${diet === 'veg' ? 'veg' : 'nonveg'}`} title={diet === 'veg' ? 'Vegetarian' : 'Non-vegetarian'} aria-label={diet === 'veg' ? 'Vegetarian' : 'Non-vegetarian'} />;
+}
+
+export default function FoodCard({ item, compact = false }) {
+  const { addToCart, cart } = useApp();
+  const { openProduct } = useUI();
+  const ratio = compact ? '1 / 1' : RATIOS[hashStr(item.id) % RATIOS.length];
+  const inCart = cart.filter(l => l.productId === item.id).reduce((s, l) => s + l.quantity, 0);
+  const from = item.sizes?.length > 1 ? Math.min(...item.sizes.map(s => s.price * (item.discountPrice != null && item.price ? item.discountPrice / item.price : 1))) : null;
+  const price = from ?? item.finalPrice;
+  const quick = () => (hasOptions(item) ? openProduct(item.id) : addToCart(item));
 
   return (
-    <article className="food-card">
-      {/* Interactive Image Container */}
-      <div 
-        className="food-card-image-wrap" 
-        onClick={handleImageClick}
-        title={`Click image to add "${item.name}" to cart`}
-      >
-        <img 
-          src={item.image} 
-          alt={item.name} 
-          className="food-card-img"
-          loading="lazy"
-          onError={(e) => {
-            // Fallback image if custom URL breaks
-            e.target.src = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80';
-          }}
-        />
-
-        {/* Floating Badge */}
-        {(item.badge || (typeof item.id === 'string' && item.id.length > 10)) && (
-          <span className={`card-badge ${getBadgeClass(item.badge || 'New')}`}>
-            <span>⭐</span>
-            <span>{item.badge || '✨ New Arrival'}</span>
-          </span>
-        )}
-
-        {/* Spice Level Indicator */}
-        {item.spicy && item.spicy !== 'None' && (
-          <span className="card-spice-badge">
-            🌶️ {item.spicy}
-          </span>
-        )}
-
-        {/* Admin Quick Edit Tag if logged in */}
-        {isAdminLoggedIn && onAdminEdit && (
-          <button
-            type="button"
-            className="card-admin-edit-badge"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdminEdit(item);
-            }}
-            title="Edit this dish in Admin Panel"
-          >
-            ✏️ Edit
+    <article className={`fcard ${item.available ? '' : 'sold'}`}>
+      <button className="fcard-img" onClick={() => openProduct(item.id)} aria-label={`View details for ${item.name}`}>
+        <Thumb src={item.image} alt={item.name} ratio={ratio} />
+        <div className="fcard-badges">
+          {item.bestSeller && <span className="badge badge-red">Best Seller</span>}
+          {item.discountPrice != null && <span className="badge badge-gold">{Math.round((1 - item.discountPrice / item.price) * 100)}% off</span>}
+        </div>
+        {item.spicy && item.spicy !== 'None' && <span className="spice" title={`${item.spicy} spicy`}><Icon name="flame" size={13} />{item.spicy}</span>}
+        {!item.available && <span className="soldout">Sold out</span>}
+      </button>
+      <div className="fcard-body">
+        <h3 className="fcard-title"><DietDot diet={item.diet} /> {item.name}</h3>
+        {!compact && <p className="fcard-desc">{item.description}</p>}
+        <div className="fcard-foot">
+          <div className="price">
+            {from != null && <small>from </small>}
+            <b>{money(price)}</b>
+            {item.discountPrice != null && from == null && <s>{money(item.price)}</s>}
+          </div>
+          <button className="add-btn" onClick={quick} disabled={!item.available} aria-label={hasOptions(item) ? `Customise ${item.name}` : `Add ${item.name} to cart`}>
+            {inCart > 0 ? <span>{inCart}</span> : <Icon name="plus" size={18} />}
           </button>
-        )}
-
-        {/* Hover / Tap Overlay (Image Button Indicator) */}
-        <div className="food-image-overlay-btn">
-          <span className="quick-add-image-tag">
-            <span>{clickedFeedback ? '✓ Added!' : '➕ Quick Add'}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Card Details */}
-      <div className="food-card-body">
-        <div className="food-card-header">
-          <div className="food-card-category">{item.category}</div>
-          <h3 className="food-card-title" title={item.name}>{item.name}</h3>
-        </div>
-
-        <p className="food-card-desc" title={item.description}>
-          {item.description}
-        </p>
-
-        {/* Price & Cart Actions */}
-        <div className="food-card-footer">
-          <div className="food-card-price-col">
-            <span className="food-price-currency">Price</span>
-            <span className="food-price-val">Rs. {Number(item.price).toLocaleString()}</span>
-          </div>
-
-          <div className="food-card-action-wrap">
-            {quantity > 0 ? (
-              /* If in cart, show interactive plus/minus stepper */
-              <div className="card-qty-stepper">
-                <button
-                  type="button"
-                  className="stepper-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUpdateQuantity(item.id, quantity - 1);
-                  }}
-                  aria-label="Decrease quantity"
-                >
-                  -
-                </button>
-                <span className="stepper-val">{quantity}</span>
-                <button
-                  type="button"
-                  className="stepper-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUpdateQuantity(item.id, quantity + 1);
-                  }}
-                  aria-label="Increase quantity"
-                >
-                  +
-                </button>
-              </div>
-            ) : (
-              /* If not in cart, show Add to Cart button */
-              <button
-                type="button"
-                className="btn-add-cart"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddToCart(item);
-                }}
-              >
-                <span>➕</span>
-                <span>Add</span>
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </article>

@@ -1,145 +1,121 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useApp } from '../lib/store.jsx';
+import { useUI } from '../lib/ui.jsx';
+import { api, money } from '../lib/api.js';
+import { Thumb } from './FoodCard.jsx';
+import { Icon } from './Navbar.jsx';
 
-export default function CartDrawer({
-  isOpen,
-  onClose,
-  cartItems,
-  onUpdateQuantity,
-  onRemoveItem,
-  onClearCart,
-  onProceedToCheckout
-}) {
-  if (!isOpen) return null;
+export function useTotals(orderType = 'delivery') {
+  const { cartSubtotal, settings } = useApp();
+  const { coupon } = useUI();
+  const discount = coupon ? Math.min(coupon.discount, cartSubtotal) : 0;
+  const s = settings || {};
+  const free = s.freeDeliveryOver > 0 && cartSubtotal >= s.freeDeliveryOver;
+  const delivery = orderType === 'delivery' && cartSubtotal > 0 && !free ? (s.deliveryFee || 0) : 0;
+  const taxable = cartSubtotal - discount;
+  const tax = Math.round(taxable * (s.taxRate || 0)) / 100;
+  return { subtotal: cartSubtotal, discount, delivery, tax, total: taxable + tax + delivery, free };
+}
 
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const deliveryFee = subtotal > 0 ? (subtotal >= 2500 ? 0 : 100) : 0;
-  const grandTotal = subtotal + deliveryFee;
+export function CouponBox() {
+  const { cartSubtotal, couponVersion, notify } = useApp();
+  const { coupon, setCoupon } = useUI();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const apply = async (c = code) => {
+    if (!c.trim()) return;
+    setBusy(true); setErr('');
+    try { const r = await api('/coupons/validate', { method: 'POST', body: { code: c, subtotal: cartSubtotal } }); setCoupon({ code: r.code, discount: r.discount }); setCode(''); notify(`Coupon ${r.code} applied`); }
+    catch (e) { setErr(e.message); setCoupon(null); } finally { setBusy(false); }
+  };
+  // keep the discount honest when the cart or the admin's coupon changes
+  useEffect(() => {
+    if (!coupon) return;
+    api('/coupons/validate', { method: 'POST', body: { code: coupon.code, subtotal: cartSubtotal } })
+      .then(r => setCoupon(c => (c && c.discount !== r.discount ? { code: r.code, discount: r.discount } : c)))
+      .catch(e => { setCoupon(null); setErr(e.message); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSubtotal, couponVersion]);
+
+  if (coupon) return <div className="coupon applied"><span><Icon name="check" size={16} /> <b>{coupon.code}</b> applied (-{money(coupon.discount)})</span><button className="linklike" onClick={() => setCoupon(null)}>Remove</button></div>;
+  return (
+    <div>
+      <form className="coupon" onSubmit={(e) => { e.preventDefault(); apply(); }}>
+        <input className="input" aria-label="Coupon code" placeholder="Coupon code" value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={30} />
+        <button className="btn btn-dark btn-sm" disabled={busy || !code.trim()}>{busy ? '...' : 'Apply'}</button>
+      </form>
+      {err && <p className="hint err-text">{err}</p>}
+    </div>
+  );
+}
+
+export function Summary({ orderType }) {
+  const t = useTotals(orderType);
+  const { settings } = useApp();
+  return (
+    <dl className="summary">
+      <div><dt>Subtotal</dt><dd>{money(t.subtotal)}</dd></div>
+      {t.discount > 0 && <div className="disc"><dt>Discount</dt><dd>-{money(t.discount)}</dd></div>}
+      {t.tax > 0 && <div><dt>Tax ({settings.taxRate}%)</dt><dd>{money(t.tax)}</dd></div>}
+      {orderType !== 'pickup' && orderType !== 'dine-in' && <div><dt>Delivery</dt><dd>{t.delivery ? money(t.delivery) : 'Free'}</dd></div>}
+      <div className="grand"><dt>Total</dt><dd>{money(t.total)}</dd></div>
+    </dl>
+  );
+}
+
+export default function CartDrawer() {
+  const { cartOpen, closeCart } = useUI();
+  const { cart, setQty, removeLine, clearCart, cartCount, cartSubtotal, settings } = useApp();
+  const nav = useNavigate();
+  useEffect(() => {
+    if (!cartOpen) return;
+    const k = (e) => e.key === 'Escape' && closeCart();
+    document.addEventListener('keydown', k); document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', k); document.body.style.overflow = ''; };
+  }, [cartOpen, closeCart]);
+  if (!cartOpen) return null;
+  const min = settings?.minimumOrder || 0;
+  const bad = cart.some(l => !l.available);
+  const go = () => { closeCart(); nav('/checkout'); };
 
   return (
-    <div className="cart-drawer-backdrop" onClick={onClose}>
-      <aside className="cart-drawer" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="cart-drawer-header">
-          <div className="cart-drawer-title-wrap">
-            <span style={{ fontSize: '1.4rem' }}>🛒</span>
-            <div>
-              <h2 className="cart-drawer-title">Your Order Cart</h2>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {cartItems.length} unique item{cartItems.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-          </div>
-          <button 
-            type="button" 
-            className="btn-drawer-close"
-            onClick={onClose}
-            aria-label="Close cart"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Item List */}
-        <div className="cart-items-list">
-          {cartItems.length === 0 ? (
-            <div className="cart-empty-state">
-              <span className="cart-empty-icon">🍕</span>
-              <h3 className="cart-empty-title">Your Cart is Empty</h3>
-              <p style={{ fontSize: '0.9rem', maxWidth: '280px' }}>
-                Add delicious pizzas, juicy burgers, tikka karahi, or chowmein from the menu!
-              </p>
-            </div>
-          ) : (
-            cartItems.map((item) => (
-              <div key={item.id} className="cart-item-card">
-                <img 
-                  src={item.image} 
-                  alt={item.name} 
-                  className="cart-item-thumb" 
-                />
-                
-                <div className="cart-item-info">
-                  <div className="cart-item-name" title={item.name}>{item.name}</div>
-                  <div className="cart-item-price-unit">
-                    Rs. {Number(item.price).toLocaleString()} each
+    <div className="overlay drawer-overlay" onClick={closeCart} role="presentation">
+      <aside className="drawer" role="dialog" aria-modal="true" aria-label="Shopping cart" onClick={e => e.stopPropagation()}>
+        <div className="modal-head"><h2>Your cart {cartCount > 0 && <small>({cartCount})</small>}</h2><button className="icon-btn" onClick={closeCart} aria-label="Close cart"><Icon name="x" /></button></div>
+        <div className="drawer-body">
+          {cart.length === 0 ? (
+            <div className="empty"><Icon name="bag" size={40} /><p>Your cart is empty.</p><button className="btn" onClick={() => { closeCart(); nav('/menu'); }}>Browse the menu</button></div>
+          ) : cart.map(l => (
+            <div className={`cline ${l.available ? '' : 'gone'}`} key={l.key}>
+              <div className="cline-img"><Thumb src={l.image} alt={l.name} ratio="1 / 1" /></div>
+              <div className="cline-main">
+                <b>{l.name}</b>
+                <small>{[l.size, l.cheese, ...(l.toppings || [])].filter(Boolean).join(' | ')}</small>
+                {l.instructions && <small className="note">Note: {l.instructions}</small>}
+                {!l.available && <small className="err-text">{l.missing ? 'No longer on the menu' : 'Currently unavailable'} - remove to continue</small>}
+                <div className="cline-row">
+                  <div className="qty sm" role="group" aria-label={`Quantity of ${l.name}`}>
+                    <button onClick={() => setQty(l.key, l.quantity - 1)} aria-label="Decrease"><Icon name="minus" size={14} /></button>
+                    <output>{l.quantity}</output>
+                    <button onClick={() => setQty(l.key, l.quantity + 1)} aria-label="Increase"><Icon name="plus" size={14} /></button>
                   </div>
-                </div>
-
-                <div className="cart-item-total-col">
-                  <span className="cart-item-line-total">
-                    Rs. {(item.price * item.quantity).toLocaleString()}
-                  </span>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <div className="cart-item-stepper">
-                      <button
-                        type="button"
-                        className="cart-stepper-btn"
-                        onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                        aria-label="Decrease"
-                      >
-                        -
-                      </button>
-                      <span className="cart-stepper-qty">{item.quantity}</span>
-                      <button
-                        type="button"
-                        className="cart-stepper-btn"
-                        onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                        aria-label="Increase"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="cart-remove-btn"
-                      onClick={() => onRemoveItem(item.id)}
-                      title="Remove item"
-                      aria-label="Remove item"
-                    >
-                      🗑️
-                    </button>
-                  </div>
+                  <b>{money(l.unitPrice * l.quantity)}</b>
                 </div>
               </div>
-            ))
-          )}
+              <button className="icon-btn" onClick={() => removeLine(l.key)} aria-label={`Remove ${l.name}`}><Icon name="x" size={16} /></button>
+            </div>
+          ))}
         </div>
-
-        {/* Bill Summary & Checkout */}
-        {cartItems.length > 0 && (
-          <div className="cart-drawer-footer">
-            <div className="bill-row">
-              <span>Subtotal:</span>
-              <span style={{ color: '#fff', fontWeight: 600 }}>Rs. {subtotal.toLocaleString()}</span>
-            </div>
-            
-            <div className="bill-row">
-              <span>Delivery Charges:</span>
-              <span style={{ color: deliveryFee === 0 ? '#10b981' : '#fff', fontWeight: 600 }}>
-                {deliveryFee === 0 ? 'FREE (Special Offer)' : `Rs. ${deliveryFee}`}
-              </span>
-            </div>
-
-            <div className="bill-row total-row">
-              <span>Total Amount:</span>
-              <span className="bill-total-price">Rs. {grandTotal.toLocaleString()}</span>
-            </div>
-
-            <div className="payment-method-badge">
-              <span>💵</span>
-              <span>Payment Mode: Cash On Delivery (COD)</span>
-            </div>
-
-            <button
-              type="button"
-              className="btn-checkout-proceed"
-              onClick={onProceedToCheckout}
-            >
-              <span>Proceed to Checkout</span>
-              <span>➔</span>
-            </button>
+        {cart.length > 0 && (
+          <div className="drawer-foot">
+            <CouponBox />
+            <Summary orderType="delivery" />
+            {min > cartSubtotal && <p className="hint err-text">Minimum order is {money(min)}. Add {money(min - cartSubtotal)} more.</p>}
+            <button className="btn btn-lg btn-block" disabled={bad || cartSubtotal < min} onClick={go}>Checkout</button>
+            <button className="linklike center" onClick={clearCart}>Clear cart</button>
           </div>
         )}
       </aside>

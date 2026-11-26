@@ -1,107 +1,69 @@
-import React from 'react';
+import { Link } from 'react-router-dom';
+import { useApp } from '../lib/store.jsx';
+import { Icon, Logo } from './Navbar.jsx';
 
-export default function Footer({ onSelectCategory, onOpenAdmin }) {
+export function Hours({ hours }) {
+  if (!hours || !hours.length) return <p className="hint">Opening hours coming soon.</p>;
   return (
-    <footer className="restaurant-footer">
-      <div className="container">
-        <div className="footer-grid">
-          {/* Brand Info */}
-          <div>
-            <div className="logo-brand" style={{ marginBottom: '1rem' }}>
-              <div className="logo-icon-wrap">
-                <span>🔥</span>
-              </div>
-              <div className="logo-text-col">
-                <span className="logo-title">Oma's</span>
-                <span className="logo-subtitle">Pizza &amp; Fast Food</span>
-              </div>
-            </div>
-            <p className="footer-desc">
-              Home of authentic artisan pizzas, crispy zinger &amp; beef smash burgers, aromatic charcoal tikka boti, handi karahi, and sizzling Chinese wok flavors. Quality you can taste in every single bite.
-            </p>
-          </div>
+    <ul className="hours">
+      {hours.map(h => <li key={h.day}><span>{h.day}</span><b>{h.closed ? 'Closed' : `${h.open} - ${h.close}`}</b></li>)}
+    </ul>
+  );
+}
 
-          {/* Menu Sections */}
-          <div>
-            <h4 className="footer-col-title">Our Menu</h4>
-            <ul className="footer-links-list">
-              <li className="footer-link-item" onClick={() => onSelectCategory('Fast Food')}>
-                🍕 Fast Food &amp; Pizzas
-              </li>
-              <li className="footer-link-item" onClick={() => onSelectCategory('Desi Food & BBQ')}>
-                🍗 Desi BBQ &amp; Karahi
-              </li>
-              <li className="footer-link-item" onClick={() => onSelectCategory('Chinese')}>
-                🥢 Authentic Chinese
-              </li>
-              <li className="footer-link-item" onClick={() => onSelectCategory('Beverages')}>
-                🥤 Shakes &amp; Chilled Drinks
-              </li>
-            </ul>
-          </div>
-
-          {/* Timings & Service */}
-          <div>
-            <h4 className="footer-col-title">Service Hours</h4>
-            <ul className="footer-links-list">
-              <li style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                <strong>Monday - Thursday:</strong><br />12:00 PM – 02:00 AM
-              </li>
-              <li style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '0.5rem' }}>
-                <strong>Friday - Sunday:</strong><br />01:00 PM – 04:00 AM
-              </li>
-              <li style={{ color: '#10b981', fontSize: '0.85rem', marginTop: '0.5rem', fontWeight: 700 }}>
-                🟢 Kitchen Live &bull; Fast Delivery
-              </li>
-            </ul>
-          </div>
-
-          {/* Contact & Hotline */}
-          <div>
-            <h4 className="footer-col-title">Order Hotline</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: '#fff', fontSize: '1.1rem', fontWeight: 800 }}>
-                <span>📞</span>
-                <span>0300-888-OMAS</span>
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                📍 Main Commercial Boulevard, Restaurant Hub
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                📧 Order Dispatches: <strong>moiiizyyy@gmail.com</strong>
-              </div>
-              <div style={{ marginTop: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={onOpenAdmin}
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#6b7280',
-                    fontSize: '0.75rem',
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  🔒 Staff Portal Login
-                </button>
-              </div>
-            </div>
+export default function Footer() {
+  const { settings: s } = useApp();
+  const wa = s?.whatsapp ? `https://wa.me/${s.whatsapp.replace(/\D/g, '')}` : '';
+  return (
+    <footer className="footer">
+      <div className="container footer-grid">
+        <div>
+          <Logo settings={s} />
+          <p className="footer-tag">{s?.tagline || 'Stone-baked pizza, made with love'}</p>
+          <div className="social">
+            {s?.social?.instagram && <a href={s.social.instagram} target="_blank" rel="noopener noreferrer">Instagram</a>}
+            {s?.social?.facebook && <a href={s.social.facebook} target="_blank" rel="noopener noreferrer">Facebook</a>}
+            {s?.social?.tiktok && <a href={s.social.tiktok} target="_blank" rel="noopener noreferrer">TikTok</a>}
+            {wa && <a href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
           </div>
         </div>
-
-        {/* Bottom Bar */}
-        <div className="footer-bottom-bar">
-          <div>
-            &copy; {new Date().getFullYear()} <strong>Oma's Pizza &amp; Fast Food</strong>. All Rights Reserved.
-          </div>
-          <div style={{ display: 'flex', gap: '1.25rem' }}>
-            <span>💵 100% Cash On Delivery</span>
-            <span>⚡ Fresh &amp; Hygienic</span>
-            <span>🔥 Halal Certified</span>
-          </div>
+        <div>
+          <h3>Explore</h3>
+          <ul className="flist">
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/menu">Menu</Link></li>
+            <li><Link to="/about">About us</Link></li>
+            <li><Link to="/gallery">Gallery</Link></li>
+            <li><Link to="/track">Track my order</Link></li>
+          </ul>
         </div>
+        <div>
+          <h3>Visit us</h3>
+          <ul className="flist">
+            <li><Icon name="pin" size={16} /> {s?.address || "Oma's Pizza Kitchen, Main Boulevard"}</li>
+            <li><Icon name="phone" size={16} /> <a href={`tel:${s?.phone || '0319615319'}`}>{s?.phone || '+92 319-615319'}</a></li>
+            <li><a href={`mailto:${s?.email || 'moiiizyyy@gmail.com'}`}>{s?.email || 'moiiizyyy@gmail.com'}</a></li>
+          </ul>
+        </div>
+        <div><h3>Opening hours</h3><Hours hours={s?.openingHours} /></div>
+      </div>
+
+      <div className="container footer-bottom">
+        <span>&copy; {new Date().getFullYear()} {s?.restaurantName || "Oma's Pizza"}. All rights reserved.</span>
+        <div className="dev-watermark" aria-label="Developer signature">
+          <svg className="dev-sig-svg" viewBox="0 0 180 46" fill="none" aria-hidden="true">
+            <path
+              d="M12 34 C16 14, 24 8, 26 28 C29 12, 39 10, 41 29 C46 18, 56 17, 56 26 C56 32, 48 33, 48 27 C48 21, 57 19, 64 25 C69 29, 71 21, 74 20 C73 27, 75 31, 80 28 C86 24, 92 20, 99 20 C93 26, 87 32, 99 31 C111 30, 128 24, 156 25"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="74.5" cy="13.5" r="1.4" fill="currentColor" />
+          </svg>
+          <span className="dev-sig-text">Developer : <b>Moiz</b> &nbsp;|&nbsp; Ph No. : <b>9231961-5319</b></span>
+        </div>
+        <Link to="/admin" className="staff-link">Admin Panel</Link>
       </div>
     </footer>
   );

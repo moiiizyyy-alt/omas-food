@@ -1,515 +1,97 @@
+// Oma's Pizza backend. Express + MongoDB (Atlas). Real-time via Server-Sent Events.
+// (The previous JSON-file server is preserved in ./legacy/server.legacy.js)
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
+const helmet = require('helmet');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
+const core = require('./src/core');
+const { bootstrap } = require('./src/bootstrap');
+const { Order } = require('./src/models');
 
+const { config } = core;
 const app = express();
-const PORT = process.env.PORT || 5000;
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
-// Paths for database files
-const DATA_DIR = path.join(__dirname, 'data');
-const MENU_FILE = path.join(DATA_DIR, 'menu.json');
-const INITIAL_MENU_FILE = path.join(DATA_DIR, 'initialMenu.json');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
-const EMAIL_LOGS_FILE = path.join(DATA_DIR, 'email_logs.json');
+if (config.isProd && !config.jwtSecret) console.error('FATAL: JWT_SECRET must be set in production');
 
-// In-memory fallbacks for serverless environments (Vercel)
-let memoryMenu = null;
-let memoryOrders = null;
-let memoryEmailLogs = [];
-
-// Ensure data directory exists safely
-try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-} catch (e) {
-  console.log('ℹ️ Running in read-only filesystem environment (Serverless / Vercel)');
-}
-
-// Initialize Menu File if not present
-try {
-  if (!fs.existsSync(MENU_FILE)) {
-    if (fs.existsSync(INITIAL_MENU_FILE)) {
-      fs.copyFileSync(INITIAL_MENU_FILE, MENU_FILE);
-    } else {
-      fs.writeFileSync(MENU_FILE, JSON.stringify([], null, 2));
-    }
-  }
-} catch (e) {
-  // Read-only filesystem fallback
-}
-
-// Helpers to read/write JSON safely
-function readJSON(file) {
-  if (file === MENU_FILE && memoryMenu) return memoryMenu;
-  if (file === ORDERS_FILE && memoryOrders) return memoryOrders;
-  if (file === EMAIL_LOGS_FILE && memoryEmailLogs.length > 0) return memoryEmailLogs;
-
-  try {
-    if (fs.existsSync(file)) {
-      const raw = fs.readFileSync(file, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (file === MENU_FILE) memoryMenu = parsed;
-      if (file === ORDERS_FILE) memoryOrders = parsed;
-      return parsed;
-    }
-  } catch (err) {
-    console.warn(`Fallback for ${file}:`, err.message);
-  }
-
-  // Fallback to initialMenu if reading menu fails
-  if (file === MENU_FILE) {
-    try {
-      if (fs.existsSync(INITIAL_MENU_FILE)) {
-        memoryMenu = JSON.parse(fs.readFileSync(INITIAL_MENU_FILE, 'utf8'));
-        return memoryMenu;
-      }
-    } catch {}
-    return [];
-  }
-  return [];
-}
-
-function writeJSON(file, data) {
-  if (file === MENU_FILE) memoryMenu = data;
-  if (file === ORDERS_FILE) memoryOrders = data;
-  if (file === EMAIL_LOGS_FILE) memoryEmailLogs = data;
-
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (err) {
-    // Expected in serverless read-only disk, memory cache handles it
-    return true;
-  }
-}
-
-// Middleware: CORS for all clients (including Vite dev server & production)
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+const allowed = (origin) => {
+  if (!origin || config.clientOrigins.includes(origin)) return true;
+  try { return process.env.ALLOW_VERCEL_PREVIEWS === 'true' && /\.vercel\.app$/.test(new URL(origin).hostname); } catch { return false; }
+};
+app.use(cors({ origin: (o, cb) => cb(null, allowed(o)), credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Requested-With'] }));
+// CSRF defence for cookie auth: browsers always send Origin on cross-site writes.
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-auth');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (!allowed(req.headers.origin)) return res.status(403).json({ success: false, message: 'Origin not allowed' });
   next();
 });
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(cookieParser());
 
-// JSON body parser with generous limit for images (Base64/Data URLs)
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+// Reject Mongo operator injection ({"$gt": ""}) in any body/query.
+const hasOp = (v) => !!v && typeof v === 'object' && Object.keys(v).some((k) => k.startsWith('$') || hasOp(v[k]));
+app.use((req, res, next) => (hasOp(req.body) || hasOp(req.query) ? res.status(400).json({ success: false, message: 'Invalid request' }) : next()));
 
-// Request Logger
-app.use((req, res, next) => {
-  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
-  next();
-});
+app.use((req, res, next) => { if (!config.isProd) console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`); next(); });
+app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false, skip: (r) => r.path === '/events', message: { success: false, message: 'Too many requests' } }));
 
-// Admin credentials
-const ADMIN_EMAIL = 'admin@omas.com';
-const ADMIN_PASSWORD = 'Adminofomas1';
-
-// -------------------------------------------------------------
-// 1. HEALTH CHECK
-// -------------------------------------------------------------
+// ---- health (works without DB so deployments can be diagnosed)
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'online',
-    restaurant: "Oma's Pizza & Fast Food",
-    time: new Date().toISOString(),
-    version: '1.0.0'
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({ status: 'online', restaurant: "Oma's Pizza", time: new Date().toISOString(), version: '2.0.0',
+    database: !config.mongoUri ? 'not configured (set MONGODB_URI)' : states[mongoose.connection.readyState] });
+});
+
+// ---- everything below needs the database
+app.use('/api', core.dbReady, async (req, res, next) => { try { await bootstrap(); next(); } catch (e) { next(e); } }, core.attachUser);
+
+app.use('/api/auth', require('./src/routes/auth'));
+app.use('/api', require('./src/routes/catalog'));
+app.use('/api', require('./src/routes/orders'));
+app.use('/api', require('./src/routes/admin'));
+
+// ---- realtime stream. Channels are decided by the server from the session, never by the client.
+app.get('/api/events', core.sseHandler(async (req) => {
+  const ch = ['public'];
+  if (req.user) { ch.push(`user:${req.user._id}`); if (core.isStaff(req.user)) ch.push('staff'); }
+  // guests may follow specific orders with the secret tracking token returned at checkout
+  const pairs = String(req.query.orders || '').split(',').filter(Boolean).slice(0, 10);
+  for (const p of pairs) {
+    const [num, token] = p.split(':');
+    const o = num && token && await Order.findOne({ orderNumber: String(num) }).select('+trackingToken');
+    if (o && o.trackingToken === token) ch.push(`order:${o.orderNumber}`);
+  }
+  return ch;
+}));
+
+app.use('/api', (req, res) => res.status(404).json({ success: false, message: 'Endpoint not found' }));
+
+// ---- error handler: no stack traces or secrets leak to clients
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  let status = err.status || 500, message = err.expose || status < 500 ? err.message : 'Something went wrong';
+  if (err.name === 'ValidationError') { status = 400; message = Object.values(err.errors).map(e => e.message).join(', '); }
+  else if (err.name === 'CastError') { status = 400; message = 'Invalid value'; }
+  else if (err.code === 11000) { status = 409; message = 'Duplicate value'; }
+  else if (err.code === 'LIMIT_FILE_SIZE') { status = 413; message = 'File too large (max 4 MB)'; }
+  else if (err.type === 'entity.parse.failed') { status = 400; message = 'Malformed JSON'; }
+  else if (err.type === 'entity.too.large') { status = 413; message = 'Request too large'; }
+  if (status >= 500 && !['DB_NOT_CONFIGURED', 'DB_UNAVAILABLE'].includes(err.code)) console.error(`[error] ${req.method} ${req.originalUrl}:`, err.stack || err);
+  res.status(status).json({ success: false, message, ...(['DB_NOT_CONFIGURED', 'DB_UNAVAILABLE'].includes(err.code) ? { code: err.code } : {}) });
+});
+
+if (!process.env.VERCEL && require.main === module) {
+  const server = app.listen(config.port, '0.0.0.0', () => {
+    console.log(`Oma's Pizza API listening on :${config.port}  (${config.isProd ? 'production' : 'development'})`);
+    if (!config.mongoUri) console.warn('MONGODB_URI is not set - API will answer 503 until it is configured. See .env.example');
+    else core.connectDb().then(bootstrap).catch(() => {});
   });
-});
-
-// -------------------------------------------------------------
-// 2. ADMIN AUTHENTICATION
-// -------------------------------------------------------------
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email and password are required' });
-  }
-
-  if (email.trim() === ADMIN_EMAIL && password.trim() === ADMIN_PASSWORD) {
-    return res.json({
-      success: true,
-      message: 'Admin authenticated successfully',
-      token: 'oma_admin_session_' + Date.now(),
-      admin: {
-        email: ADMIN_EMAIL,
-        name: "Oma's Restaurant Manager",
-        role: 'admin'
-      }
-    });
-  }
-
-  return res.status(401).json({
-    success: false,
-    message: 'Invalid email or password. Access denied.'
-  });
-});
-
-// -------------------------------------------------------------
-// 3. MENU ITEMS APIS (GET, POST, PUT, DELETE)
-// -------------------------------------------------------------
-
-// Get all menu items
-app.get('/api/items', (req, res) => {
-  const items = readJSON(MENU_FILE);
-  res.json({
-    success: true,
-    count: items.length,
-    items
-  });
-});
-
-// Add new menu item (Admin Upload)
-app.post('/api/items', (req, res) => {
-  const { name, category, price, description, image, badge, spicy, subCategory } = req.body;
-
-  if (!name || !price || !category) {
-    return res.status(400).json({
-      success: false,
-      message: 'Item name, price, and category are required'
-    });
-  }
-
-  const items = readJSON(MENU_FILE);
-
-  const newItem = {
-    id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    name: name.trim(),
-    category: category.trim(),
-    subCategory: subCategory ? subCategory.trim() : category.trim(),
-    price: Number(price),
-    rating: 5.0,
-    reviews: 1,
-    description: description ? description.trim() : 'Delicious freshly prepared specialty from Oma\'s kitchen.',
-    image: image && image.trim() ? image.trim() : 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80',
-    badge: badge ? badge.trim() : 'New',
-    spicy: spicy || 'Mild',
-    createdAt: new Date().toISOString()
-  };
-
-  // Add at the beginning of the list so it appears prominently
-  items.unshift(newItem);
-  writeJSON(MENU_FILE, items);
-
-  console.log(`✨ New Menu Item Added: "${newItem.name}" under [${newItem.category}] - Rs. ${newItem.price}`);
-
-  res.status(201).json({
-    success: true,
-    message: 'Menu item uploaded and aligned successfully!',
-    item: newItem
-  });
-});
-
-// Update item (Admin)
-app.put('/api/items/:id', (req, res) => {
-  const { id } = req.params;
-  const updates = req.body;
-  const items = readJSON(MENU_FILE);
-
-  const index = items.findIndex(item => item.id === id);
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: 'Item not found' });
-  }
-
-  if (updates.price !== undefined) {
-    updates.price = Number(updates.price);
-  }
-
-  items[index] = {
-    ...items[index],
-    ...updates,
-    id: items[index].id // preserve id
-  };
-
-  writeJSON(MENU_FILE, items);
-  console.log(`✏️ Menu Item Updated: "${items[index].name}" - Rs. ${items[index].price}`);
-  res.json({ success: true, message: 'Item updated successfully', item: items[index] });
-});
-
-// Delete item (Admin)
-app.delete('/api/items/:id', (req, res) => {
-  const { id } = req.params;
-  const items = readJSON(MENU_FILE);
-
-  const index = items.findIndex(item => item.id === id);
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: 'Item not found' });
-  }
-
-  const deletedItem = items[index];
-  const filtered = items.filter(item => item.id !== id);
-
-  writeJSON(MENU_FILE, filtered);
-  console.log(`🗑️ Menu Item Deleted: "${deletedItem.name}" (${deletedItem.id})`);
-  res.json({ success: true, message: 'Item removed from menu', id });
-});
-
-// Full Menu Sync endpoint from cloud / admin
-app.post('/api/sync-menu', (req, res) => {
-  const { items } = req.body;
-  if (Array.isArray(items)) {
-    writeJSON(MENU_FILE, items);
-    console.log(`🔄 Entire Menu Synced (${items.length} items saved)`);
-    return res.json({ success: true, count: items.length });
-  }
-  res.status(400).json({ success: false, message: 'Invalid items array' });
-});
-
-// -------------------------------------------------------------
-// 4. ORDERS & EMAIL NOTIFICATION TO moiiizyyy@gmail.com
-// -------------------------------------------------------------
-
-// Helper function to send email notification
-async function dispatchOrderEmail(order) {
-  const recipientEmail = 'moiiizyyy@gmail.com';
-  const timestamp = new Date(order.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Karachi' });
-
-  // Format Item List
-  const itemsText = order.items.map((item, idx) => {
-    return `${idx + 1}. ${item.name} (Qty: ${item.quantity}) - Rs. ${item.price * item.quantity}`;
-  }).join('\n');
-
-  const emailSubject = `🚨 NEW ORDER #${order.orderId} - Oma's Pizza & Fast Food (Rs. ${order.grandTotal})`;
-
-  const emailBodyText = `
-======================================================
-  OMA'S PIZZA & FAST FOOD - NEW ORDER RECEIVED
-======================================================
-
-Order ID      : ${order.orderId}
-Order Date    : ${timestamp}
-Payment Method: ${order.paymentMethod}
-Order Status  : ${order.status}
-
------------------- CUSTOMER DETAILS ------------------
-Customer Name : ${order.customer.name}
-Phone Number  : ${order.customer.phone}
-Address       : ${order.customer.address}
-Special Notes : ${order.customer.notes || 'None'}
-
--------------------- ORDER ITEMS ---------------------
-${itemsText}
-
-------------------------------------------------------
-Subtotal      : Rs. ${order.subtotal}
-Delivery Fee  : Rs. ${order.deliveryFee}
-GRAND TOTAL   : Rs. ${order.grandTotal}
-======================================================
-  `;
-
-  // Log in terminal
-  console.log(`\n======================================================`);
-  console.log(`📩 DISPATCHING REAL EMAIL NOTIFICATION TO: ${recipientEmail}`);
-  console.log(emailBodyText);
-  console.log(`======================================================\n`);
-
-  // Record into email_logs.json
-  const emailLogEntry = {
-    orderId: order.orderId,
-    recipient: recipientEmail,
-    subject: emailSubject,
-    sentAt: new Date().toISOString(),
-    customer: order.customer,
-    grandTotal: order.grandTotal,
-    status: 'Dispatched'
-  };
-
-  const emailLogs = readJSON(EMAIL_LOGS_FILE);
-  emailLogs.unshift(emailLogEntry);
-  writeJSON(EMAIL_LOGS_FILE, emailLogs);
-
-  // 1. LIVE DIRECT DISPATCH via FormSubmit HTTP Service to moiiizyyy@gmail.com
-  try {
-    const https = require('https');
-    const postPayload = JSON.stringify({
-      _subject: emailSubject,
-      'Order ID': order.orderId,
-      'Customer Name': order.customer.name,
-      'Phone Number': order.customer.phone,
-      'Delivery Address': order.customer.address,
-      'Special Notes': order.customer.notes || 'None',
-      'Ordered Items': itemsText,
-      'Subtotal': `Rs. ${order.subtotal}`,
-      'Delivery Fee': `Rs. ${order.deliveryFee}`,
-      'Grand Total': `Rs. ${order.grandTotal}`,
-      'Payment Mode': order.paymentMethod,
-      _template: 'table',
-      _captcha: 'false'
-    });
-
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Referer': 'http://localhost:5173/',
-        'Origin': 'http://localhost:5173'
-      }
-    };
-
-    const req = https.request(`https://formsubmit.co/ajax/${recipientEmail}`, options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        console.log(`📬 [FormSubmit Response for ${recipientEmail}]: Status ${res.statusCode} -> ${data}`);
-      });
-    });
-
-    req.on('error', (err) => {
-      console.warn('FormSubmit dispatch warning:', err.message);
-    });
-
-    req.write(postPayload);
-    req.end();
-  } catch (err) {
-    console.warn('Live dispatch error:', err);
-  }
-
-  // 2. Secondary dispatch: Nodemailer if SMTP configured
-  try {
-    const nodemailer = require('nodemailer');
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-
-      await transporter.sendMail({
-        from: `"Oma's Orders" <${process.env.SMTP_USER}>`,
-        to: recipientEmail,
-        subject: emailSubject,
-        text: emailBodyText
-      });
-      console.log(`✅ Real SMTP Email sent successfully to ${recipientEmail}`);
-    }
-  } catch (mailErr) {
-    // Optional SMTP
-  }
-
-  return { success: true, recipient: recipientEmail };
-}
-
-// Place Order
-app.post('/api/orders', async (req, res) => {
-  const { customer, items, subtotal, deliveryFee, grandTotal } = req.body;
-
-  if (!customer || !customer.name || !customer.phone || !customer.address) {
-    return res.status(400).json({
-      success: false,
-      message: 'Please provide full customer details: Name, Phone Number, and Complete Address are required.'
-    });
-  }
-
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Cart is empty. Please add items to order.'
-    });
-  }
-
-  const orderId = `OMA-${Math.floor(100000 + Math.random() * 900000)}`;
-  const calculatedSubtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
-  const delivery = deliveryFee !== undefined ? Number(deliveryFee) : 100;
-  const total = grandTotal !== undefined ? Number(grandTotal) : calculatedSubtotal + delivery;
-
-  const newOrder = {
-    orderId,
-    customer: {
-      name: customer.name.trim(),
-      phone: customer.phone.trim(),
-      address: customer.address.trim(),
-      notes: customer.notes ? customer.notes.trim() : ''
-    },
-    items: items.map(item => ({
-      id: item.id,
-      name: item.name,
-      price: Number(item.price),
-      quantity: Number(item.quantity) || 1,
-      image: item.image || ''
-    })),
-    subtotal: calculatedSubtotal,
-    deliveryFee: delivery,
-    grandTotal: total,
-    paymentMethod: 'Cash on Delivery (COD)',
-    status: 'Pending',
-    createdAt: new Date().toISOString()
-  };
-
-  // Save to orders file
-  const orders = readJSON(ORDERS_FILE);
-  orders.unshift(newOrder);
-  writeJSON(ORDERS_FILE, orders);
-
-  // Dispatch email to moiiizyyy@gmail.com
-  await dispatchOrderEmail(newOrder);
-
-  res.status(201).json({
-    success: true,
-    message: `Order #${orderId} confirmed successfully! All details sent to moiiizyyy@gmail.com`,
-    order: newOrder,
-    emailNotificationSentTo: 'moiiizyyy@gmail.com'
-  });
-});
-
-// Get all orders
-app.get('/api/orders', (req, res) => {
-  const orders = readJSON(ORDERS_FILE);
-  res.json({
-    success: true,
-    count: orders.length,
-    orders
-  });
-});
-
-// Update order status
-app.patch('/api/orders/:id/status', (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
-  if (!status) {
-    return res.status(400).json({ success: false, message: 'Status is required' });
-  }
-
-  const orders = readJSON(ORDERS_FILE);
-  const order = orders.find(o => o.orderId === id || o.id === id);
-
-  if (!order) {
-    return res.status(404).json({ success: false, message: 'Order not found' });
-  }
-
-  order.status = status;
-  writeJSON(ORDERS_FILE, orders);
-
-  res.json({
-    success: true,
-    message: `Order status updated to ${status}`,
-    order
-  });
-});
-
-// -------------------------------------------------------------
-// START SERVER (Local/Dedicated) & EXPORT (Vercel Serverless)
-// -------------------------------------------------------------
-if (!process.env.VERCEL) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n======================================================`);
-    console.log(`🍕 Oma's Pizza & Fast Food Backend is RUNNING on port ${PORT}`);
-    console.log(`🌐 Base URL: http://localhost:${PORT}`);
-    console.log(`📱 Local Network URL: http://192.168.0.105:${PORT}`);
-    console.log(`🔒 Admin Credentials: admin@omas.com / Adminofomas1`);
-    console.log(`📧 Order Notification Target: moiiizyyy@gmail.com`);
-    console.log(`======================================================\n`);
-  });
+  process.on('SIGTERM', () => server.close(() => mongoose.connection.close().then(() => process.exit(0))));
 }
 
 module.exports = app;
-
