@@ -51,7 +51,38 @@ export default function Orders() {
 
       <State loading={loading} error={error} onRetry={reload} hasData={!!data}>
         {orders.length === 0 ? <Empty>No matching orders.</Empty> : (
-          <div className="table-wrap">
+          <>
+          <div className="adm-mobile-list">
+            {orders.map(o => {
+              const nexts = nextStatuses(o, user, can);
+              return (
+                <div className={`card adm-mcard ${flashId === o.orderNumber ? 'adm-flash' : ''}`} key={o.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div><b>{o.orderNumber}</b><div className="adm-muted">{fmtDate(o.createdAt)}</div></div>
+                    <StatusBadge status={o.status} />
+                  </div>
+                  <div><b>{o.customer?.name}</b> · <span className="adm-muted">{o.customer?.phone}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span><span className="badge">{TYPE_LABEL[o.orderType] || o.orderType}</span> <span className="badge badge-dark">{o.source}</span></span>
+                    <b className="adm-num">{money(o.grandTotal)}</b>
+                  </div>
+                  <div className="adm-mcard-actions">
+                    {o.status === 'Pending' && nexts.includes('Confirmed') && <button className="btn btn-sm" onClick={() => updateStatus(o, 'Confirmed')}>Accept</button>}
+                    {o.status === 'Pending' && nexts.includes('Cancelled') && <button className="btn btn-sm btn-danger" onClick={() => updateStatus(o, 'Cancelled')}>Reject</button>}
+                    {nexts.length > 0 && (
+                      <select className="select" style={{ minHeight: 34, padding: '2px 8px', flex: '1 1 130px' }} value="" aria-label="Change status" onChange={e => e.target.value && updateStatus(o, e.target.value)}>
+                        <option value="">Move to...</option>
+                        {nexts.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
+                    <button className="btn btn-sm btn-ghost" onClick={() => setDetail(o)}>Details</button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => printReceipt(o, settings)}>Print</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="table-wrap adm-desk-table">
             <table className="table">
               <thead><tr><th>Order</th><th>Customer</th><th>Type / Source</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
@@ -84,6 +115,7 @@ export default function Orders() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </State>
 

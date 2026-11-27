@@ -1,9 +1,27 @@
-/* Admin Panel Styles — clean full-width layout without sidebar */
-.adm-noside { min-height: 100dvh; background: var(--cream); display: flex; flex-direction: column; }
-.adm-top { position: sticky; top: 0; z-index: 40; min-height: 62px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); padding: 10px 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
-.adm-top-l, .adm-top-r, .adm-top-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.adm-body { padding: 20px 16px 48px; max-width: 1280px; width: 100%; margin: 0 auto; }
+/* Admin Panel Styles — mobile-first, zero horizontal overflow, no sidebar */
+.adm-noside { min-height: 100dvh; width: 100%; max-width: 100%; background: var(--cream); display: flex; flex-direction: column; }
+.adm-top { position: sticky; top: 0; z-index: 40; width: 100%; background: rgba(255, 255, 255, .96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+@media (min-width: 760px) { .adm-top { padding: 10px 24px; } }
+.adm-top-l, .adm-top-r, .adm-top-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: 100%; }
+.adm-top-tabs { order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
+.adm-top-tabs::-webkit-scrollbar { display: none; }
+@media (min-width: 820px) { .adm-top-tabs { order: 2; width: auto; } .adm-top-r { order: 3; } }
+.adm-body { padding: 16px 12px 48px; max-width: 1280px; width: 100%; margin: 0 auto; min-width: 0; }
+.adm-body > * { min-width: 0; max-width: 100%; }
 @media (min-width: 760px) { .adm-body { padding: 26px 28px 56px; } }
+
+/* Mobile-first admin cards (cards on phone, table on desktop) */
+.adm-desk-table { display: none; }
+.adm-mobile-list { display: grid; gap: 10px; }
+@media (min-width: 780px) { .adm-desk-table { display: block; } .adm-mobile-list { display: none; } }
+.adm-mcard { padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.adm-mcard-top { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.adm-mcard-top img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: var(--sand); }
+.adm-mcard-info { flex: 1; min-width: 0; }
+.adm-mcard-info b { display: block; font-size: .94rem; overflow-wrap: anywhere; }
+.adm-mcard-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.adm-mcard-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm-mcard-actions .btn { flex: 1 1 90px; }
 
 .adm-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .adm-page-head h1 { font-size: clamp(1.35rem, 2.4vw, 1.8rem); margin: 0; }
@@ -25,8 +43,9 @@
 .adm-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .adm-card-head h3 { margin: 0; font-size: 1.08rem; }
 
-.adm-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
-.adm-toolbar .input, .adm-toolbar .select { width: auto; min-width: 150px; flex: 1 1 160px; max-width: 280px; }
+.adm-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; width: 100%; }
+.adm-toolbar .input, .adm-toolbar .select { width: 100%; min-width: 0; flex: 1 1 160px; }
+@media (min-width: 640px) { .adm-toolbar .input, .adm-toolbar .select { max-width: 280px; } }
 
 .adm-seg { display: inline-flex; background: var(--sand); padding: 3px; border-radius: var(--r-pill); gap: 2px; }
 .adm-seg button { border: 0; background: transparent; padding: 5px 11px; border-radius: var(--r-pill); font-size: .78rem; font-weight: 700; text-transform: capitalize; color: var(--ink-2); }
@@ -58,7 +77,7 @@
 
 .adm-opts { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; margin: 0 0 14px; display: grid; gap: 8px; }
 .adm-opts legend { font-size: .78rem; font-weight: 800; padding: 0 6px; color: var(--ink-2); }
-.adm-opt-row { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; align-items: center; }
+.adm-opt-row { display: grid; grid-template-columns: minmax(0, 1fr) 86px auto; gap: 6px; align-items: center; }
 
 /* Charts */
 .adm-chart-empty { text-align: center; padding: 40px 10px; color: var(--ink-3); font-size: .86rem; }

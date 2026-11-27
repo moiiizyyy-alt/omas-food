@@ -62,7 +62,37 @@ export default function Products() {
         <input className="input" placeholder="Search by item name or description..." value={q} onChange={e => setQ(e.target.value)} />
       </div>
 
-      <div className="table-wrap">
+      <div className="adm-mobile-list">
+        {list.map(p => (
+          <div className="card adm-mcard" key={p.id}>
+            <div className="adm-mcard-top">
+              {p.image && <img src={assetUrl(p.image)} alt="" />}
+              <div className="adm-mcard-info">
+                <b>{p.name}</b>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  <span className="badge">{p.category}</span>
+                  <span className="adm-num">{money(p.finalPrice)}</span>
+                  {p.discountPrice != null && <s className="adm-muted">{money(p.price)}</s>}
+                </div>
+              </div>
+            </div>
+            <div className="adm-mcard-meta">
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', fontWeight: 600 }}>
+                <Toggle checked={p.available} label={`Toggle ${p.name} availability`} onChange={v => quickToggle(p, 'available', v)} /> Available
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', fontWeight: 600 }}>
+                <Toggle checked={p.bestSeller} label={`Toggle ${p.name} best seller`} onChange={v => quickToggle(p, 'bestSeller', v)} /> Best Seller
+              </label>
+            </div>
+            <div className="adm-mcard-actions">
+              <button className="btn btn-sm btn-ghost" onClick={() => openEdit(p)}>Edit</button>
+              <button className="btn btn-sm btn-danger" onClick={() => setDel(p)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="table-wrap adm-desk-table">
         <table className="table">
           <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Available</th><th>Best Seller</th><th>Actions</th></tr></thead>
           <tbody>

@@ -20,7 +20,11 @@ if (config.isProd && !config.jwtSecret) console.error('FATAL: JWT_SECRET must be
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 const allowed = (origin) => {
   if (!origin || config.clientOrigins.includes(origin)) return true;
-  try { return process.env.ALLOW_VERCEL_PREVIEWS === 'true' && /\.vercel\.app$/.test(new URL(origin).hostname); } catch { return false; }
+  try {
+    const host = new URL(origin).hostname;
+    if (!config.isProd && /^(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(host)) return true;
+    return process.env.ALLOW_VERCEL_PREVIEWS === 'true' && /\.vercel\.app$/.test(host);
+  } catch { return false; }
 };
 app.use(cors({ origin: (o, cb) => cb(null, allowed(o)), credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Requested-With'] }));
 // CSRF defence for cookie auth: browsers always send Origin on cross-site writes.

@@ -30,7 +30,24 @@ export default function Categories() {
   return (
     <>
       <PageHead title="Categories" sub="Create, edit and reorder menu categories"><button className="btn" onClick={() => setEdit({ name: '', description: '', active: true })}>+ Add Category</button></PageHead>
-      <div className="table-wrap">
+      <div className="adm-mobile-list">
+        {categories.map((c, i) => (
+          <div className="card adm-mcard" key={c.id}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div><b>{c.name}</b>{c.description && <div className="adm-muted">{c.description}</div>}</div>
+              <span className={`badge ${c.active ? 'badge-green' : 'badge-danger'}`}>{c.active ? 'Active' : 'Hidden'}</span>
+            </div>
+            <div className="adm-mcard-actions">
+              <button className="btn btn-sm btn-ghost" disabled={i === 0} onClick={() => move(i, -1)}>↑ Up</button>
+              <button className="btn btn-sm btn-ghost" disabled={i === categories.length - 1} onClick={() => move(i, 1)}>↓ Down</button>
+              <button className="btn btn-sm btn-ghost" onClick={() => setEdit(c)}>Edit</button>
+              <button className="btn btn-sm btn-danger" onClick={() => setDel(c)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="table-wrap adm-desk-table">
         <table className="table">
           <thead><tr><th>Order</th><th>Name</th><th>Status</th><th></th></tr></thead>
           <tbody>

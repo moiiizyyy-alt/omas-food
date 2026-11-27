@@ -4,6 +4,7 @@ import { useApp } from '../lib/store.jsx';
 import { useUI } from '../lib/ui.jsx';
 import { useSeo } from '../lib/seo.js';
 import FoodCard from '../components/FoodCard.jsx';
+import MasonryGrid from '../components/MasonryGrid.jsx';
 import { Skeletons } from './Home.jsx';
 import { Icon } from '../components/Navbar.jsx';
 
@@ -64,7 +65,7 @@ export default function Menu() {
       {error && <div className="form-error">{error} <button className="linklike" onClick={reload}>Try again</button></div>}
       {loading ? <Skeletons n={10} /> : list.length === 0 ? (
         <div className="empty"><Icon name="search" size={40} /><h3>Nothing matches</h3><p>{items.length === 0 ? 'The menu is empty right now.' : 'Try a different search or clear the filters.'}</p>{filtered && <button className="btn" onClick={clear}>Clear filters</button>}</div>
-      ) : <div className="masonry" aria-live="polite">{list.map(i => <div className="mitem" key={i.id}><FoodCard item={i} /></div>)}</div>}
+      ) : <div aria-live="polite"><MasonryGrid items={list} renderItem={(i) => <FoodCard item={i} />} /></div>}
     </div>
   );
 }

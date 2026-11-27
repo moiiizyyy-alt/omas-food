@@ -3,6 +3,7 @@ import { useApp } from '../lib/store.jsx';
 import { useSeo } from '../lib/seo.js';
 import { assetUrl } from '../lib/api.js';
 import { Icon } from '../components/Navbar.jsx';
+import MasonryGrid from '../components/MasonryGrid.jsx';
 
 const CURATED_GALLERY = [
   { src: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&auto=format&fit=crop&q=80', alt: 'Fresh Stone-Baked Supreme Pizza' },
@@ -58,16 +59,16 @@ export default function Gallery() {
         <p className="hint">Tap any photo to view full size — {pics.length} mouth-watering moments.</p>
       </div>
 
-      <div className="masonry gallery">
-        {pics.map((p, i) => (
-          <div className="mitem" key={p.src}>
-            <button className="gitem" onClick={() => setOpen(i)} aria-label={`Open photo: ${p.alt}`}>
-              <img src={assetUrl(p.src)} alt={p.alt} loading="lazy" decoding="async" />
-              <span className="gcap">{p.alt}</span>
-            </button>
-          </div>
-        ))}
-      </div>
+      <MasonryGrid
+        className="gallery"
+        items={pics}
+        renderItem={(p, i) => (
+          <button className="gitem" onClick={() => setOpen(i)} aria-label={`Open photo: ${p.alt}`}>
+            <img src={assetUrl(p.src)} alt={p.alt} loading="lazy" decoding="async" style={{ aspectRatio: ['4 / 5', '1 / 1', '3 / 4', '5 / 6'][i % 4], objectFit: 'cover' }} />
+            <span className="gcap">{p.alt}</span>
+          </button>
+        )}
+      />
 
       {open >= 0 && pics[open] && (
         <div className="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer" onClick={() => setOpen(-1)}>

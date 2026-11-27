@@ -5,6 +5,7 @@ import { api, assetUrl } from '../lib/api.js';
 import { on, onResync } from '../lib/realtime.js';
 import { useSeo } from '../lib/seo.js';
 import FoodCard from '../components/FoodCard.jsx';
+import MasonryGrid from '../components/MasonryGrid.jsx';
 import { Hours } from '../components/Footer.jsx';
 import { Icon } from '../components/Navbar.jsx';
 
@@ -24,7 +25,8 @@ export function useReviews() {
 }
 
 export function Skeletons({ n = 8 }) {
-  return <div className="masonry">{Array.from({ length: n }).map((_, i) => <div key={i} className="mitem"><div className="skeleton" style={{ aspectRatio: ['4/5', '1/1', '5/6', '3/4'][i % 4] }} /></div>)}</div>;
+  const arr = Array.from({ length: n }, (_, i) => ({ id: `sk-${i}`, r: ['4/5', '1/1', '5/6', '3/4'][i % 4] }));
+  return <MasonryGrid items={arr} renderItem={(s) => <div className="skeleton" style={{ aspectRatio: s.r }} />} />;
 }
 
 const WHY = [
@@ -98,7 +100,7 @@ export default function Home() {
           <Link to="/menu" className="more">Full menu <Icon name="chev" size={16} /></Link>
         </div>
         {loading ? <Skeletons n={12} /> : best.length === 0 ? <p className="empty">The menu is being updated. Please check back soon.</p> : (
-          <div className="masonry">{best.map(i => <div className="mitem" key={i.id}><FoodCard item={i} /></div>)}</div>
+          <MasonryGrid items={best} renderItem={(i) => <FoodCard item={i} />} />
         )}
       </section>
 
@@ -109,7 +111,7 @@ export default function Home() {
             <Link to="/menu?cat=Deals%20%26%20Combos" className="more">All deals <Icon name="chev" size={16} /></Link>
           </div>
           {deals.length > 0 && <div className="deal-row">{deals.map(d => <div className="deal" key={d.code}><b>{d.type === 'percentage' ? `${d.value}% OFF` : `Rs. ${d.value} OFF`}</b><span>{d.description || 'On your order'}{d.minOrder ? ` over Rs. ${d.minOrder}` : ''}</span><code>{d.code}</code></div>)}</div>}
-          {comboDeals.length > 0 && <div className="masonry">{comboDeals.map(i => <div className="mitem" key={i.id}><FoodCard item={i} /></div>)}</div>}
+          {comboDeals.length > 0 && <MasonryGrid items={comboDeals} renderItem={(i) => <FoodCard item={i} />} />}
         </section>
       )}
 
@@ -119,7 +121,7 @@ export default function Home() {
             <div><h2 id="h-feat">Featured from the kitchen</h2><p className="hint">Fresh pastas, smash burgers, appetizers &amp; sweet finishes</p></div>
             <Link to="/menu" className="more">Explore all <Icon name="chev" size={16} /></Link>
           </div>
-          <div className="masonry">{featured.map(i => <div className="mitem" key={i.id}><FoodCard item={i} /></div>)}</div>
+          <MasonryGrid items={featured} renderItem={(i) => <FoodCard item={i} />} />
         </section>
       )}
 

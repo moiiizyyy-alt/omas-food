@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, unitPrice } from './api';
 import * as rt from './realtime';
+import { FALLBACK_CATEGORIES, FALLBACK_ITEMS, FALLBACK_SETTINGS } from '../data/fallbackCatalog';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -32,7 +33,13 @@ export function AppProvider({ children }) {
     try {
       const [s, c, i] = await Promise.all([api('/settings'), api('/categories'), api('/items')]);
       setSettings(s.settings); setCategories(c.categories); setItems(i.items); setError('');
-    } catch (e) { if (initial) setError(e.message); }
+    } catch {
+      // Graceful fallback so mobile / static preview still shows the full menu & photos cleanly
+      setSettings(prev => prev || FALLBACK_SETTINGS);
+      setCategories(prev => (prev.length ? prev : FALLBACK_CATEGORIES));
+      setItems(prev => (prev.length ? prev : FALLBACK_ITEMS));
+      setError('');
+    }
     finally { if (initial) setLoading(false); }
   }, []);
   const refreshMe = useCallback(async () => {
