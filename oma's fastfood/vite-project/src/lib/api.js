@@ -21,8 +21,9 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   }
   let data = null;
   const text = await res.text();
-  try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
   if (!res.ok) throw new ApiError((data && data.message) || `Request failed (${res.status})`, res.status, data);
+  if (!data || typeof data !== 'object') throw new ApiError('Server returned an unexpected response.', res.status);
   return data;
 }
 

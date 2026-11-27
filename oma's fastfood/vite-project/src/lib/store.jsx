@@ -32,7 +32,11 @@ export function AppProvider({ children }) {
   const loadAll = useCallback(async (initial = false) => {
     try {
       const [s, c, i] = await Promise.all([api('/settings'), api('/categories'), api('/items')]);
-      setSettings(s.settings); setCategories(c.categories); setItems(i.items); setError('');
+      if (!Array.isArray(i?.items) || !Array.isArray(c?.categories)) throw new Error('Invalid catalog');
+      setSettings(s?.settings || FALLBACK_SETTINGS);
+      setCategories(c.categories.length ? c.categories : FALLBACK_CATEGORIES);
+      setItems(i.items.length ? i.items : FALLBACK_ITEMS);
+      setError('');
     } catch {
       // Graceful fallback so mobile / static preview still shows the full menu & photos cleanly
       setSettings(prev => prev || FALLBACK_SETTINGS);

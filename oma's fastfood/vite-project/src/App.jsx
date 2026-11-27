@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { Component, lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useApp } from './lib/store.jsx';
 import Navbar from './components/Navbar.jsx';
@@ -15,6 +15,23 @@ import Track from './pages/Track.jsx';
 import Account from './pages/Account.jsx';
 
 const AdminApp = lazy(() => import('./admin/AdminApp.jsx'));
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="container empty" style={{ padding: '96px 16px' }}>
+          <h1>Something went wrong</h1>
+          <p className="hint">{this.state.error?.message || 'Unexpected error'}</p>
+          <button className="btn" onClick={() => window.location.reload()}>Reload page</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function NotFound() {
   return <div className="container empty" style={{ padding: '96px 0' }}><h1>Page not found</h1><p>The page you are looking for does not exist.</p><a className="btn" href="/">Back to home</a></div>;
@@ -50,8 +67,11 @@ function Shell() {
 
 export default function App() {
   const { pathname } = useLocation();
-  if (pathname.startsWith('/admin')) {
-    return <Suspense fallback={<div className="container empty"><div className="spinner" /></div>}><AdminApp /></Suspense>;
-  }
-  return <Shell />;
+  return (
+    <ErrorBoundary>
+      {pathname.startsWith('/admin')
+        ? <Suspense fallback={<div className="container empty"><div className="spinner" /></div>}><AdminApp /></Suspense>
+        : <Shell />}
+    </ErrorBoundary>
+  );
 }

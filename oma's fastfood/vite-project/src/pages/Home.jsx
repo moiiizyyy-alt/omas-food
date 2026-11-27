@@ -16,7 +16,7 @@ export function Stars({ n }) {
 export function useReviews() {
   const [data, setData] = useState({ reviews: [], average: 0, count: 0 });
   useEffect(() => {
-    const load = () => api('/reviews').then(setData).catch(() => {});
+    const load = () => api('/reviews').then(d => { if (d && Array.isArray(d.reviews)) setData(d); }).catch(() => {});
     load();
     const offs = [on('reviews:updated', load), onResync(load)];
     return () => offs.forEach(f => f());
@@ -44,7 +44,7 @@ export default function Home() {
   useSeo({ title: null, description: s?.tagline ? `${s.restaurantName}: ${s.tagline}. Order online for delivery or pickup.` : undefined, image: items[0]?.image });
 
   useEffect(() => {
-    const load = () => api('/coupons/public').then(r => setDeals(r.coupons)).catch(() => {});
+    const load = () => api('/coupons/public').then(r => { if (r && Array.isArray(r.coupons)) setDeals(r.coupons); }).catch(() => {});
     load(); const offs = [on('coupons:updated', load), onResync(load)];
     return () => offs.forEach(f => f());
   }, []);
