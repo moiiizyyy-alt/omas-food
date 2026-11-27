@@ -7,7 +7,7 @@ import { CheckField, ConfirmDialog, Field, ImageField, Modal, OptionRows, PageHe
 const BLANK = { name: '', description: '', price: '', discountPrice: '', categoryId: '', subCategory: '', badge: '', diet: 'nonveg', spicy: 'None', bestSeller: false, featured: false, available: true, image: '', sizes: [], toppings: [], cheeseOptions: [] };
 
 export default function Products() {
-  const { items, categories } = useApp();
+  const { items, categories, reload } = useApp();
   const act = useAct();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
@@ -32,15 +32,15 @@ export default function Products() {
     const body = { ...edit, price: Number(edit.price), discountPrice: edit.discountPrice === '' ? null : Number(edit.discountPrice), sizes: cleanOpts(edit.sizes), toppings: cleanOpts(edit.toppings), cheeseOptions: cleanOpts(edit.cheeseOptions) };
     const r = await act(() => api(edit.id ? `/items/${edit.id}` : '/items', { method: edit.id ? 'PUT' : 'POST', body }), edit.id ? 'Product updated live on website!' : 'New product added to menu live!');
     setBusy(false);
-    if (r) setEdit(null);
+    if (r) { setEdit(null); reload(); }
   };
 
-  const quickToggle = (p, field, val) => act(() => api(`/items/${p.id}`, { method: 'PUT', body: { [field]: val } }), `${p.name} updated`);
+  const quickToggle = async (p, field, val) => { if (await act(() => api(`/items/${p.id}`, { method: 'PUT', body: { [field]: val } }), `${p.name} updated`)) reload(); };
   const remove = async () => {
     setBusy(true);
     const r = await act(() => api(`/items/${del.id}`, { method: 'DELETE' }), 'Product deleted from menu');
     setBusy(false);
-    if (r) setDel(null);
+    if (r) { setDel(null); reload(); }
   };
 
   return (

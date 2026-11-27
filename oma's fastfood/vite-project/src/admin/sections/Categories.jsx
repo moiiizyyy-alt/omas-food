@@ -5,7 +5,7 @@ import { useAct } from '../components/hooks';
 import { CheckField, ConfirmDialog, Modal, PageHead, TextField } from '../components/ui';
 
 export default function Categories() {
-  const { categories } = useApp();
+  const { categories, reload } = useApp();
   const act = useAct();
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
@@ -13,18 +13,18 @@ export default function Categories() {
   const save = async (e) => {
     e.preventDefault();
     const r = await act(() => api(edit.id ? `/categories/${edit.id}` : '/categories', { method: edit.id ? 'PUT' : 'POST', body: edit }), 'Category saved');
-    if (r) setEdit(null);
+    if (r) { setEdit(null); reload(); }
   };
   const move = async (idx, dir) => {
     const arr = [...categories];
     const target = idx + dir;
     if (target < 0 || target >= arr.length) return;
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
-    await act(() => api('/categories/reorder', { method: 'POST', body: { ids: arr.map(c => c.id) } }), 'Order updated');
+    if (await act(() => api('/categories/reorder', { method: 'POST', body: { ids: arr.map(c => c.id) } }), 'Order updated')) reload();
   };
   const remove = async () => {
     const r = await act(() => api(`/categories/${del.id}`, { method: 'DELETE' }), 'Category deleted');
-    if (r) setDel(null);
+    if (r) { setDel(null); reload(); }
   };
 
   return (

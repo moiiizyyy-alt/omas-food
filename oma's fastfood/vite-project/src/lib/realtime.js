@@ -27,7 +27,11 @@ function start() {
     setStatus('live');
     if (needResync) resync.forEach(fn => fn());
   });
-  es.onerror = () => { wasOffline = true; setStatus('offline'); };
+  es.onerror = () => {
+    wasOffline = true;
+    setStatus('offline');
+    if (es && es.readyState === 2) { stop(); } // serverless host closed stream -> rely on clean polling below
+  };
 }
 function stop() { if (es) { es.close(); es = null; } }
 
@@ -55,6 +59,6 @@ if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && (!es || es.readyState === 2)) { wasOffline = true; start(); }
   });
-  poll = setInterval(() => { if (document.visibilityState === 'visible' && status !== 'live') resync.forEach(fn => fn()); lastTick = Date.now(); }, 30000);
+  poll = setInterval(() => { if (document.visibilityState === 'visible' && status !== 'live') resync.forEach(fn => fn()); lastTick = Date.now(); }, 6000);
 }
 export { poll, lastTick };

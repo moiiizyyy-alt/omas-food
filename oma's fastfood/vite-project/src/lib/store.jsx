@@ -129,7 +129,7 @@ export function AppProvider({ children }) {
   const logout = async () => { await api('/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null); notify('Logged out'); };
   const isStaff = !!user && ['superadmin', 'manager', 'cashier', 'kitchen'].includes(user.role);
 
-  const value = { settings, categories, items, byId, loading, error, reload: () => loadAll(true), user, setUser, refreshMe, login, register, logout, isStaff, live, couponVersion,
+  const value = { settings, categories, items, byId, loading, error, reload: () => loadAll(false), user, setUser, refreshMe, login, register, logout, isStaff, live, couponVersion,
     cart: cartLines, cartCount, cartSubtotal, addToCart, setQty, removeLine, clearCart, notify, toast };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
